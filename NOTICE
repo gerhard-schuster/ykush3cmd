@@ -1,0 +1,59 @@
+ykush3cmd
+Copyright 2026 Gerhard Schuster
+
+Licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+
+Where the protocol comes from
+-----------------------------
+
+This program speaks to the same hardware as ykushcmd, the control application
+Yepkit publishes for their YKUSH boards:
+
+    https://github.com/Yepkit/ykush
+    Copyright 2017 Yepkit Lda (www.yepkit.com)
+
+What was taken from it is functional: the USB control protocol — command
+opcodes, report layout, the meaning of the answers — and the names of the
+command line switches. Facts and interfaces of that kind are not what copyright
+protects, so this notice is here because the work deserves crediting, not
+because a license compels it.
+
+What was not taken: any source file, any line of the help text, any message the
+program prints. Help and output of this program are written from scratch and
+were checked against every string literal in ykush_help.cpp, ykush3.cpp and
+yk_usb_device.cpp — nothing overlaps.
+
+Yepkit Lda has neither endorsed nor reviewed this work and does not support it.
+Their trademarks and product names are used only to say which hardware this
+program drives.
+
+The behaviour differs from the original in these points, which may matter when
+switching over:
+
+  - only the YKUSH3 board is covered; YKUSH, YKUSH2 and YKUSHXS are not
+  - the messages are worded differently, so a script that parses the output of
+    the original has to be adapted; exit codes are unaffected
+  - the state of the external 5V port is decoded, which the original omits
+  - the length of an I2C read is transmitted as a single byte, correcting a
+    conversion in the original that corrupts the report for ten bytes and more
+  - a GPIO read prints its value instead of only setting the exit code
+  - control characters in a device supplied serial number are replaced before
+    the string reaches the terminal
+
+
+Third party components
+----------------------
+
+HIDAPI is statically linked into the resulting binary. HIDAPI may be used under
+one of three licenses; the license chosen here is the BSD-Style License, whose
+full text is in the file LICENSE-hidapi-bsd.txt:
+
+    Copyright (c) 2010, Alan Ott, Signal 11 Software
+    All rights reserved.
+    https://github.com/libusb/hidapi
+
+The GNU General Public License, which HIDAPI also offers, is expressly not the
+license used here.
+
+Further components and their licenses are listed in THIRD-PARTY-NOTICES.md.
