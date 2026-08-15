@@ -1,10 +1,13 @@
 [package]
 name = "ykush3cmd"
-version = "1.4.0"
+version = "0.1.0"
 edition = "2021"
 rust-version = "1.74"
 license = "Apache-2.0"
 description = "Control application for the Yepkit YKUSH3 switchable USB hub"
+readme = "README.md"
+keywords = ["usb", "hub", "hid", "ykush", "yepkit"]
+categories = ["command-line-utilities", "hardware-support"]
 
 [dependencies]
 hidapi = "2"
