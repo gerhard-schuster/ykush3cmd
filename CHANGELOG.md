@@ -1,0 +1,50 @@
+# Changelog
+
+Notable changes, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## Unreleased
+
+### Changed
+
+- Narrowed to macOS on Apple silicon, which is where this was written, built and
+  run. Anywhere else the build now stops with a message saying so, rather than
+  producing a binary nobody has tried.
+
+## 0.1.0 — 2026-08-15
+
+First release. A control program for the Yepkit YKUSH3, written in Rust against
+the USB protocol the vendor documents.
+
+### Added
+
+- Switching of the three downstream ports and the external 5V output, singly or
+  all at once, and reading a port's state back
+- Reading and writing the three GPIO pins, and handing them to the board as a
+  control interface
+- Configuring what a port does after a reset or a power cut
+- Reset, entering the bootloader, and reading the firmware and bootloader
+  versions
+- I2C in both roles: as a slave the board takes switching commands from an
+  outside master, as a master it carries transfers from the host onto the bus
+- Listing attached boards and addressing one by serial number
+- 81 tests that need no hardware, plus 6 that do: four want a board, two only
+  the HID stack of the operating system
+
+### Notes for anyone coming from the C++ application
+
+The switches are the same and a leading `ykush3` is accepted, so existing
+invocations keep working. The messages are worded differently, so a script that
+parses output has to be adapted; exit codes are unchanged.
+
+Behaviour that differs on purpose, each of them fixing something:
+
+- the state of the external 5V port is decoded rather than reported as an error
+- an I2C read longer than nine bytes no longer corrupts the report
+- a GPIO read prints its value instead of returning it as the exit status
+- hexadecimal arguments are accepted with and without the `0x` prefix
+- `--reset` and `--boot` no longer wait for an answer the board never sends
+- a serial number works wherever it appears on the line
+- control characters in a serial number the device reports are replaced before
+  the string reaches the terminal
