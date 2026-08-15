@@ -80,7 +80,10 @@ mod tests {
             ),
             (Error::NotFound { serial: None }, "No YKUSH3 board found"),
             (Error::NoResponse, "No response from the board"),
-            (Error::Device("the board said no".into()), "the board said no"),
+            (
+                Error::Device("the board said no".into()),
+                "the board said no",
+            ),
             (Error::Hid(hid_error()), "USB HID error"),
             (
                 Error::HidInit("no permission".into()),

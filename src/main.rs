@@ -67,11 +67,7 @@ fn run(program: &str, args: &[String], out: &mut impl Write) -> Result<()> {
 }
 
 /// Runs a command against an opened board and prints what it returns.
-fn execute<T: Transport>(
-    board: &Ykush3<T>,
-    command: &Command,
-    out: &mut impl Write,
-) -> Result<()> {
+fn execute<T: Transport>(board: &Ykush3<T>, command: &Command, out: &mut impl Write) -> Result<()> {
     match command {
         Command::PortUp(port) => board.port_up(*port)?,
         Command::PortDown(port) => board.port_down(*port)?,
@@ -86,12 +82,8 @@ fn execute<T: Transport>(
         Command::Reset => board.reset()?,
         Command::Bootloader => board.enter_bootloader()?,
 
-        Command::FirmwareVersion => {
-            writeln!(out, "Firmware {}", board.firmware_version()?)?
-        }
-        Command::BootloaderVersion => {
-            writeln!(out, "Bootloader {}", board.bootloader_version()?)?
-        }
+        Command::FirmwareVersion => writeln!(out, "Firmware {}", board.firmware_version()?)?,
+        Command::BootloaderVersion => writeln!(out, "Bootloader {}", board.bootloader_version()?)?,
 
         Command::I2cSlave(enable) => board.i2c_slave(*enable)?,
         Command::I2cMaster(enable) => board.i2c_master(*enable)?,
@@ -187,7 +179,10 @@ mod tests {
     #[test]
     fn an_i2c_read_prints_one_decimal_byte_per_line() {
         assert_eq!(
-            output(&[0x01, 0x52, 0x03, 0x01, 0x0a, 0xff], Command::I2cRead(0x20, 3)),
+            output(
+                &[0x01, 0x52, 0x03, 0x01, 0x0a, 0xff],
+                Command::I2cRead(0x20, 3)
+            ),
             "1\n10\n255\n"
         );
     }
@@ -196,10 +191,7 @@ mod tests {
     fn switching_commands_print_nothing() {
         assert_eq!(output(&[0x01], Command::PortUp(Port::Downstream(1))), "");
         assert_eq!(output(&[0x01], Command::WriteIo(1, true)), "");
-        assert_eq!(
-            output(&[0x01, 0x51], Command::I2cSlave(true)),
-            ""
-        );
+        assert_eq!(output(&[0x01, 0x51], Command::I2cSlave(true)), "");
     }
 
     #[test]
@@ -247,7 +239,10 @@ mod tests {
 
     #[test]
     fn the_program_name_is_taken_from_the_invocation_path() {
-        assert_eq!(program_name(&["/usr/bin/ykush3cmd".to_owned()]), "ykush3cmd");
+        assert_eq!(
+            program_name(&["/usr/bin/ykush3cmd".to_owned()]),
+            "ykush3cmd"
+        );
         assert_eq!(program_name(&[]), "ykush3cmd");
     }
 
@@ -318,7 +313,11 @@ mod tests {
 
     #[test]
     fn an_unparsable_command_line_never_reaches_a_board() {
-        let result = run("ykush3cmd", &["-u".to_owned(), "9".to_owned()], &mut Vec::new());
+        let result = run(
+            "ykush3cmd",
+            &["-u".to_owned(), "9".to_owned()],
+            &mut Vec::new(),
+        );
 
         assert!(matches!(result, Err(Error::Usage(_))));
     }

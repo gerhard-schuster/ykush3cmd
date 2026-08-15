@@ -119,8 +119,16 @@ mod op {
 }
 
 /// Firmware versions before 1.1.0 do not know the version command.
-const LEGACY_FIRMWARE: Version = Version { major: 1, minor: 0, patch: 0 };
-const LEGACY_BOOTLOADER: Version = Version { major: 0, minor: 10, patch: 0 };
+const LEGACY_FIRMWARE: Version = Version {
+    major: 1,
+    minor: 0,
+    patch: 0,
+};
+const LEGACY_BOOTLOADER: Version = Version {
+    major: 0,
+    minor: 10,
+    patch: 0,
+};
 
 /// A YKUSH3 board ready to take commands.
 pub struct Ykush3<T: Transport = Board> {
@@ -437,11 +445,7 @@ mod tests {
             (0x14, PortStatus { port: 4, on: true }),
             (0x04, PortStatus { port: 4, on: false }),
         ] {
-            let (result, _) = exchange(
-                &[0x01, answer],
-                |b| b.port_status(Port::Downstream(1)),
-                1,
-            );
+            let (result, _) = exchange(&[0x01, answer], |b| b.port_status(Port::Downstream(1)), 1);
 
             assert_eq!(result.unwrap(), expected, "answer 0x{answer:02x}");
         }
@@ -506,7 +510,11 @@ mod tests {
         for (port, state, expected) in [
             (Port::Downstream(1), PowerOnState::Off, [0x41, 0x01, 0x00]),
             (Port::Downstream(2), PowerOnState::On, [0x41, 0x02, 0x01]),
-            (Port::Downstream(3), PowerOnState::Persist, [0x41, 0x03, 0x02]),
+            (
+                Port::Downstream(3),
+                PowerOnState::Persist,
+                [0x41, 0x03, 0x02],
+            ),
             (Port::External, PowerOnState::On, [0x41, 0x04, 0x01]),
         ] {
             let (result, sent) = exchange(&[0x01], |b| b.config_port(port, state), 3);

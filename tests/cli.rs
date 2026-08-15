@@ -38,7 +38,10 @@ fn the_help_option_prints_the_same_help() {
         let output = run(&[flag]);
 
         assert!(output.status.success(), "{flag}");
-        assert!(stdout(&output).contains("Switch the ports of a YKUSH3 hub"), "{flag}");
+        assert!(
+            stdout(&output).contains("Switch the ports of a YKUSH3 hub"),
+            "{flag}"
+        );
     }
 }
 

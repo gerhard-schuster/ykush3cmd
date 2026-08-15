@@ -14,7 +14,10 @@ pub fn print_version(out: &mut impl Write) -> Result<()> {
 
 pub fn print_usage(out: &mut impl Write, program: &str) -> Result<()> {
     writeln!(out, "Usage: {program} [-s SERIAL] COMMAND")?;
-    writeln!(out, "Switch the ports of a YKUSH3 hub and read back its state.")?;
+    writeln!(
+        out,
+        "Switch the ports of a YKUSH3 hub and read back its state."
+    )?;
     Ok(())
 }
 
@@ -98,12 +101,18 @@ mod tests {
     #[test]
     fn a_failing_writer_is_reported_instead_of_panicking() {
         // Every part on its own, so no early failure hides a later one.
-        assert!(matches!(print_version(&mut FailingWriter), Err(Error::Io(_))));
+        assert!(matches!(
+            print_version(&mut FailingWriter),
+            Err(Error::Io(_))
+        ));
         assert!(matches!(
             print_usage(&mut FailingWriter, "ykush3cmd"),
             Err(Error::Io(_))
         ));
-        assert!(matches!(print_options(&mut FailingWriter), Err(Error::Io(_))));
+        assert!(matches!(
+            print_options(&mut FailingWriter),
+            Err(Error::Io(_))
+        ));
         assert!(matches!(
             print_all(&mut FailingWriter, "ykush3cmd"),
             Err(Error::Io(_))

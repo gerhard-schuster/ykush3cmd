@@ -119,9 +119,10 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
             gpio(opt.param(0, "a GPIO number")?)?,
             level(opt.param(1, "a value of 0 or 1")?)?,
         ),
-        "--gpio" => {
-            Command::GpioControl(enable_disable(opt.param(0, "enable or disable")?, "--gpio")?)
-        }
+        "--gpio" => Command::GpioControl(enable_disable(
+            opt.param(0, "enable or disable")?,
+            "--gpio",
+        )?),
 
         "--reset" => Command::Reset,
         "--boot" => Command::Bootloader,
@@ -136,9 +137,7 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
             opt.param(0, "enable or disable")?,
             "--i2c-master",
         )?),
-        "--i2c-set-address" => {
-            Command::I2cSetAddress(hex_byte(opt.param(0, "an I2C address")?)?)
-        }
+        "--i2c-set-address" => Command::I2cSetAddress(hex_byte(opt.param(0, "an I2C address")?)?),
         "--i2c-write" => {
             let address = hex_byte(opt.param(0, "an I2C address")?)?;
             if opt.params.len() < 2 {
@@ -275,7 +274,9 @@ mod tests {
 
     /// Parses a command line and returns the command.
     fn cmd(line: &str) -> Command {
-        parse(&args(line)).expect("command line should parse").command
+        parse(&args(line))
+            .expect("command line should parse")
+            .command
     }
 
     /// Message of a command line that is expected to be rejected. A usage error
@@ -295,8 +296,14 @@ mod tests {
         assert_eq!(
             opts,
             vec![
-                Opt { name: "-s".into(), params: vec!["YK00001".into()] },
-                Opt { name: "-c".into(), params: vec!["1".into(), "2".into()] },
+                Opt {
+                    name: "-s".into(),
+                    params: vec!["YK00001".into()]
+                },
+                Opt {
+                    name: "-c".into(),
+                    params: vec!["1".into(), "2".into()]
+                },
             ]
         );
     }
@@ -354,10 +361,7 @@ mod tests {
 
     #[test]
     fn a_serial_number_option_needs_a_value() {
-        assert_eq!(
-            usage_error("-s -d 1"),
-            "Option -s expects a serial number"
-        );
+        assert_eq!(usage_error("-s -d 1"), "Option -s expects a serial number");
     }
 
     // -- port commands ----------------------------------------------------
@@ -417,7 +421,10 @@ mod tests {
     #[test]
     fn an_invalid_power_on_state_is_rejected() {
         assert!(usage_error("-c 1 5").starts_with("Invalid configuration value '5'"));
-        assert_eq!(usage_error("-c 1"), "Option -c expects a configuration value");
+        assert_eq!(
+            usage_error("-c 1"),
+            "Option -c expects a configuration value"
+        );
     }
 
     // -- gpio -------------------------------------------------------------
