@@ -30,6 +30,17 @@ downstream port at once.
   -g PORT            report whether it is on      PORT = 1|2|3|4
   -on                shorthand for -u 4
   -off               shorthand for -d 4
+  -c PORT STATE      what the port does after a reset or a power cut:
+                     0 stay off, 1 come up, 2 return to where it was.
+                     PORT = 1|2|3|e, where e is the 5V output
+
+GPIO. Three pins, driven from the host once the control interface is off.
+
+  -r PIN             read the pin and print 0 or 1     PIN = 1|2|3
+  -w PIN LEVEL       drive the pin high or low         LEVEL = 0|1
+  --gpio enable      hand the pins over to the board, which then switches
+                     the like-numbered port according to the level it sees
+  --gpio disable     take the pins back for -r and -w
 
 Board.
 

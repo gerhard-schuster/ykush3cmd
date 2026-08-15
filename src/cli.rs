@@ -10,7 +10,7 @@
 //! line surface can be tested on its own.
 
 use crate::error::{Error, Result};
-use crate::ykush3::Port;
+use crate::ykush3::{Port, PowerOnState};
 
 /// What the user asked the application to do.
 #[derive(Debug, PartialEq, Eq)]
@@ -21,6 +21,10 @@ pub enum Command {
     PortUp(Port),
     PortDown(Port),
     PortStatus(Port),
+    Config(Port, PowerOnState),
+    ReadIo(u8),
+    WriteIo(u8, bool),
+    GpioControl(bool),
 }
 
 /// A command together with the board it is addressed to.
@@ -96,6 +100,20 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
         "-on" => Command::PortUp(Port::External),
         "-off" => Command::PortDown(Port::External),
 
+        "-c" => Command::Config(
+            port(opt.param(0, "a port number")?)?,
+            power_on_state(opt.param(1, "a configuration value")?)?,
+        ),
+
+        "-r" => Command::ReadIo(gpio(opt.param(0, "a GPIO number")?)?),
+        "-w" => Command::WriteIo(
+            gpio(opt.param(0, "a GPIO number")?)?,
+            level(opt.param(1, "a value of 0 or 1")?)?,
+        ),
+        "--gpio" => {
+            Command::GpioControl(enable_disable(opt.param(0, "enable or disable")?, "--gpio")?)
+        }
+
         _ => return Ok(None),
     };
 
@@ -135,6 +153,52 @@ fn split(args: &[String]) -> Vec<Opt> {
     }
 
     opts
+}
+
+/// GPIO pin number, `1|2|3`.
+fn gpio(value: &str) -> Result<u8> {
+    match value {
+        "1" => Ok(1),
+        "2" => Ok(2),
+        "3" => Ok(3),
+        _ => Err(Error::Usage(format!(
+            "Invalid GPIO number '{value}', expected 1, 2 or 3"
+        ))),
+    }
+}
+
+/// Logic level of a GPIO pin, `0|1`.
+fn level(value: &str) -> Result<bool> {
+    match value {
+        "0" => Ok(false),
+        "1" => Ok(true),
+        _ => Err(Error::Usage(format!(
+            "Invalid GPIO value '{value}', expected 0 or 1"
+        ))),
+    }
+}
+
+/// Power-on default of a port, `0|1|2`.
+fn power_on_state(value: &str) -> Result<PowerOnState> {
+    match value {
+        "0" => Ok(PowerOnState::Off),
+        "1" => Ok(PowerOnState::On),
+        "2" => Ok(PowerOnState::Persist),
+        _ => Err(Error::Usage(format!(
+            "Invalid configuration value '{value}', expected 0 (off), 1 (on) or 2 (persistent)"
+        ))),
+    }
+}
+
+/// `enable` or `disable`.
+fn enable_disable(value: &str, option: &str) -> Result<bool> {
+    match value {
+        "enable" => Ok(true),
+        "disable" => Ok(false),
+        _ => Err(Error::Usage(format!(
+            "Invalid value '{value}' for {option}, expected enable or disable"
+        ))),
+    }
 }
 
 #[cfg(test)]
@@ -238,6 +302,52 @@ mod tests {
     fn the_external_port_has_two_spellings() {
         assert_eq!(cmd("-u 4"), Command::PortUp(Port::External));
         assert_eq!(cmd("-u e"), Command::PortUp(Port::External));
+        assert_eq!(
+            cmd("-c e 1"),
+            Command::Config(Port::External, PowerOnState::On)
+        );
+        assert_eq!(
+            cmd("-c 4 1"),
+            Command::Config(Port::External, PowerOnState::On)
+        );
+    }
+
+    #[test]
+    fn the_power_on_state_is_parsed() {
+        assert_eq!(
+            cmd("-c 1 0"),
+            Command::Config(Port::Downstream(1), PowerOnState::Off)
+        );
+        assert_eq!(
+            cmd("-c 2 1"),
+            Command::Config(Port::Downstream(2), PowerOnState::On)
+        );
+        assert_eq!(
+            cmd("-c 3 2"),
+            Command::Config(Port::Downstream(3), PowerOnState::Persist)
+        );
+    }
+
+    #[test]
+    fn an_invalid_power_on_state_is_rejected() {
+        assert!(usage_error("-c 1 5").starts_with("Invalid configuration value '5'"));
+        assert_eq!(usage_error("-c 1"), "Option -c expects a configuration value");
+    }
+
+    #[test]
+    fn gpio_commands_are_parsed() {
+        assert_eq!(cmd("-r 2"), Command::ReadIo(2));
+        assert_eq!(cmd("-w 1 1"), Command::WriteIo(1, true));
+        assert_eq!(cmd("-w 3 0"), Command::WriteIo(3, false));
+        assert_eq!(cmd("--gpio enable"), Command::GpioControl(true));
+        assert_eq!(cmd("--gpio disable"), Command::GpioControl(false));
+    }
+
+    #[test]
+    fn invalid_gpio_arguments_are_rejected() {
+        assert!(usage_error("-r 4").starts_with("Invalid GPIO number '4'"));
+        assert!(usage_error("-w 1 2").starts_with("Invalid GPIO value '2'"));
+        assert!(usage_error("--gpio on").starts_with("Invalid value 'on' for --gpio"));
     }
 
     #[test]

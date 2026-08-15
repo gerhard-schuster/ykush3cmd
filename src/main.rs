@@ -77,6 +77,12 @@ fn execute<T: Transport>(
         Command::PortDown(port) => board.port_down(*port)?,
         Command::PortStatus(port) => writeln!(out, "{}", board.port_status(*port)?)?,
 
+        Command::Config(port, state) => board.config_port(*port, *state)?,
+
+        Command::ReadIo(gpio) => writeln!(out, "{}", board.read_io(*gpio)?)?,
+        Command::WriteIo(gpio, high) => board.write_io(*gpio, *high)?,
+        Command::GpioControl(enable) => board.gpio_control(*enable)?,
+
         // Handled by run() before a board is opened.
         Command::Help | Command::Version | Command::List => {
             unreachable!("command does not address a board")
@@ -139,8 +145,16 @@ mod tests {
     }
 
     #[test]
+    fn a_gpio_read_prints_the_pin_level() {
+        // The C++ application only puts the level into the exit code.
+        assert_eq!(output(&[0x01, 0x30, 0x01, 0x01], Command::ReadIo(1)), "1\n");
+        assert_eq!(output(&[0x01, 0x30, 0x01, 0x00], Command::ReadIo(1)), "0\n");
+    }
+
+    #[test]
     fn switching_commands_print_nothing() {
         assert_eq!(output(&[0x01], Command::PortUp(Port::Downstream(1))), "");
+        assert_eq!(output(&[0x01], Command::WriteIo(1, true)), "");
     }
 
     #[test]

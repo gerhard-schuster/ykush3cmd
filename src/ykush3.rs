@@ -42,6 +42,25 @@ impl fmt::Display for Port {
     }
 }
 
+/// Power-on default of a port, as stored in the board configuration.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PowerOnState {
+    Off,
+    On,
+    /// Restore the state the port had when the board lost power.
+    Persist,
+}
+
+impl PowerOnState {
+    fn code(self) -> u8 {
+        match self {
+            PowerOnState::Off => 0,
+            PowerOnState::On => 1,
+            PowerOnState::Persist => 2,
+        }
+    }
+}
+
 /// Switching state reported by the board for a single port.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct PortStatus {
@@ -65,6 +84,10 @@ mod op {
     pub const PORT_DOWN: u8 = 0x00;
     pub const PORT_UP: u8 = 0x10;
     pub const PORT_STATUS: u8 = 0x20;
+    pub const IO_READ: u8 = 0x30;
+    pub const IO_WRITE: u8 = 0x31;
+    pub const IO_CONTROL: u8 = 0x32;
+    pub const PORT_CONFIG: u8 = 0x41;
 }
 
 /// A YKUSH3 board ready to take commands.
@@ -120,6 +143,37 @@ impl<T: Transport> Ykush3<T> {
             port: number,
             on: (state >> 4) != 0,
         })
+    }
+
+    /// Reads the level of a GPIO pin.
+    pub fn read_io(&self, gpio: u8) -> Result<u8> {
+        let resp = self.request(&[op::IO_READ, gpio])?;
+        Ok(resp[3])
+    }
+
+    /// Drives a GPIO pin high or low.
+    pub fn write_io(&self, gpio: u8, high: bool) -> Result<()> {
+        self.request(&[op::IO_WRITE, gpio, u8::from(high)])?;
+        Ok(())
+    }
+
+    /// Enables or disables the GPIO control interface. Takes effect on the next
+    /// reset or power-on of the board.
+    pub fn gpio_control(&self, enable: bool) -> Result<()> {
+        self.request(&[op::IO_CONTROL, u8::from(enable)])?;
+        Ok(())
+    }
+
+    /// Configures the power-on default state of a port.
+    pub fn config_port(&self, port: Port, state: PowerOnState) -> Result<()> {
+        if port == Port::All {
+            return Err(Error::Usage(
+                "The power-on state can only be configured for a single port".into(),
+            ));
+        }
+
+        self.request(&[op::PORT_CONFIG, port.code(), state.code()])?;
+        Ok(())
     }
 
     /// Sends a command and returns the answer.
@@ -233,6 +287,57 @@ mod tests {
 
         assert!(matches!(result, Err(Error::Usage(_))));
         assert_eq!(board.transport.sent_count(), 0, "nothing must be sent");
+    }
+
+    #[test]
+    fn read_io_returns_the_pin_level_from_the_answer() {
+        let (result, sent) = exchange(&[0x01, 0x30, 0x02, 0x01], |b| b.read_io(2), 2);
+
+        assert_eq!(sent, vec![0x30, 0x02]);
+        assert_eq!(result.unwrap(), 1);
+    }
+
+    #[test]
+    fn write_io_encodes_the_level() {
+        let (_, high) = exchange(&[0x01], |b| b.write_io(3, true), 3);
+        let (_, low) = exchange(&[0x01], |b| b.write_io(3, false), 3);
+
+        assert_eq!(high, vec![0x31, 0x03, 0x01]);
+        assert_eq!(low, vec![0x31, 0x03, 0x00]);
+    }
+
+    #[test]
+    fn gpio_control_toggles_the_interface() {
+        let (_, enable) = exchange(&[0x01], |b| b.gpio_control(true), 2);
+        let (_, disable) = exchange(&[0x01], |b| b.gpio_control(false), 2);
+
+        assert_eq!(enable, vec![0x32, 0x01]);
+        assert_eq!(disable, vec![0x32, 0x00]);
+    }
+
+    #[test]
+    fn config_port_encodes_port_and_power_on_state() {
+        for (port, state, expected) in [
+            (Port::Downstream(1), PowerOnState::Off, [0x41, 0x01, 0x00]),
+            (Port::Downstream(2), PowerOnState::On, [0x41, 0x02, 0x01]),
+            (Port::Downstream(3), PowerOnState::Persist, [0x41, 0x03, 0x02]),
+            (Port::External, PowerOnState::On, [0x41, 0x04, 0x01]),
+        ] {
+            let (result, sent) = exchange(&[0x01], |b| b.config_port(port, state), 3);
+
+            assert!(result.is_ok());
+            assert_eq!(sent, expected.to_vec(), "config_port({port:?}, {state:?})");
+        }
+    }
+
+    #[test]
+    fn config_port_rejects_all_ports() {
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        let result = board.config_port(Port::All, PowerOnState::On);
+
+        assert!(matches!(result, Err(Error::Usage(_))));
+        assert_eq!(board.transport.sent_count(), 0);
     }
 
     #[test]
