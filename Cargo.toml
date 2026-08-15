@@ -6,6 +6,9 @@ rust-version = "1.74"
 license = "Apache-2.0"
 description = "Control application for the Yepkit YKUSH3 switchable USB hub"
 
+[dependencies]
+hidapi = "2"
+
 [profile.release]
 opt-level = "s"
 strip = true

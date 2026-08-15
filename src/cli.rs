@@ -16,6 +16,7 @@ use crate::error::{Error, Result};
 pub enum Command {
     Help,
     Version,
+    List,
 }
 
 /// One option of the command line together with its parameters.
@@ -49,6 +50,7 @@ fn command(opt: &Opt) -> Option<Command> {
     match opt.name.as_str() {
         "-h" | "--help" => Some(Command::Help),
         "-v" | "--version" => Some(Command::Version),
+        "-l" => Some(Command::List),
         _ => None,
     }
 }
@@ -125,6 +127,7 @@ mod tests {
     fn the_plain_commands_are_parsed() {
         assert_eq!(cmd("-h"), Command::Help);
         assert_eq!(cmd("--help"), Command::Help);
+        assert_eq!(cmd("-l"), Command::List);
         assert_eq!(cmd("-v"), Command::Version);
         assert_eq!(cmd("--version"), Command::Version);
     }

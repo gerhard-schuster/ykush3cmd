@@ -10,6 +10,7 @@
 compile_error!("ykush3cmd is for macOS on Apple silicon");
 
 mod cli;
+mod device;
 mod error;
 mod help;
 
@@ -50,7 +51,20 @@ fn run(program: &str, args: &[String], out: &mut impl Write) -> Result<()> {
     match cli::parse(args)? {
         Command::Help => help::print_all(out, program),
         Command::Version => help::print_version(out),
+        Command::List => print_boards(out, &device::list()?),
     }
+}
+
+fn print_boards(out: &mut impl Write, serials: &[String]) -> Result<()> {
+    writeln!(out, "YKUSH3 boards on this host:")?;
+    if serials.is_empty() {
+        writeln!(out, "  none")?;
+    }
+    for (i, serial) in serials.iter().enumerate() {
+        writeln!(out, "  {:>2}  {serial}", i + 1)?;
+    }
+
+    Ok(())
 }
 
 fn program_name(args: &[String]) -> String {
@@ -95,6 +109,40 @@ mod tests {
         let result = run("ykush3cmd", &["-x".to_owned()], &mut Vec::new());
 
         assert!(matches!(result, Err(Error::Usage(_))));
+    }
+
+    #[test]
+    fn attached_boards_are_listed_with_their_serial_numbers() {
+        let mut out = Vec::new();
+
+        print_boards(&mut out, &["YK00001".to_owned(), "YK00002".to_owned()]).unwrap();
+
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("YKUSH3 boards on this host:"));
+        assert!(text.contains("1  YK00001"));
+        assert!(text.contains("2  YK00002"));
+    }
+
+    #[test]
+    fn an_empty_board_list_says_so() {
+        let mut out = Vec::new();
+
+        print_boards(&mut out, &[]).unwrap();
+
+        assert!(String::from_utf8(out).unwrap().contains("none"));
+    }
+
+    /// Needs the HID stack of the operating system, but no board.
+    #[test]
+    #[ignore = "needs the HID stack of the operating system"]
+    fn listing_boards_reaches_the_hid_stack() {
+        let mut out = Vec::new();
+
+        run("ykush3cmd", &["-l".to_owned()], &mut out).expect("listing should work");
+
+        assert!(String::from_utf8(out)
+            .unwrap()
+            .contains("YKUSH3 boards on this host"));
     }
 
     #[test]

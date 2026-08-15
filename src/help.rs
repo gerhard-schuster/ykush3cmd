@@ -22,6 +22,9 @@ pub fn print_options(out: &mut impl Write) -> Result<()> {
     write!(
         out,
         "
+Board.
+
+  -l                 list the serial number of every attached board
   -v, --version      print the version of this program
   -h, --help         print this text
 
