@@ -79,6 +79,20 @@ impl fmt::Display for PortStatus {
     }
 }
 
+/// A three part firmware or bootloader version.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Version {
+    pub major: u8,
+    pub minor: u8,
+    pub patch: u8,
+}
+
+impl fmt::Display for Version {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
+}
+
 /// Command opcodes understood by the board.
 mod op {
     pub const PORT_DOWN: u8 = 0x00;
@@ -88,7 +102,17 @@ mod op {
     pub const IO_WRITE: u8 = 0x31;
     pub const IO_CONTROL: u8 = 0x32;
     pub const PORT_CONFIG: u8 = 0x41;
+    pub const BOOTLOADER: u8 = 0x42;
+    pub const RESET: u8 = 0x55;
+    pub const VERSION: u8 = 0x61;
+
+    /// First byte of a successful answer.
+    pub const ACK: u8 = 0x01;
 }
+
+/// Firmware versions before 1.1.0 do not know the version command.
+const LEGACY_FIRMWARE: Version = Version { major: 1, minor: 0, patch: 0 };
+const LEGACY_BOOTLOADER: Version = Version { major: 0, minor: 10, patch: 0 };
 
 /// A YKUSH3 board ready to take commands.
 pub struct Ykush3<T: Transport = Board> {
@@ -176,9 +200,50 @@ impl<T: Transport> Ykush3<T> {
         Ok(())
     }
 
+    /// Reboots the board. The board does not answer this command.
+    pub fn reset(&self) -> Result<()> {
+        self.notify(&[op::RESET])
+    }
+
+    /// Enters and stays in bootloader mode. The board does not answer this
+    /// command.
+    pub fn enter_bootloader(&self) -> Result<()> {
+        self.notify(&[op::BOOTLOADER])
+    }
+
+    /// Firmware version of the board.
+    pub fn firmware_version(&self) -> Result<Version> {
+        self.version(0x02, LEGACY_FIRMWARE)
+    }
+
+    /// Bootloader version of the board.
+    pub fn bootloader_version(&self) -> Result<Version> {
+        self.version(0x01, LEGACY_BOOTLOADER)
+    }
+
+    fn version(&self, kind: u8, legacy: Version) -> Result<Version> {
+        let resp = self.request(&[op::VERSION, kind])?;
+
+        // Boards too old to know the version command leave the answer empty.
+        if resp[0] != op::ACK && resp[0] != op::VERSION {
+            return Ok(legacy);
+        }
+
+        Ok(Version {
+            major: resp[2],
+            minor: resp[3],
+            patch: resp[4],
+        })
+    }
+
     /// Sends a command and returns the answer.
     fn request(&self, payload: &[u8]) -> Result<Report> {
         self.transport.transfer(&report(payload))
+    }
+
+    /// Sends a command that the board does not answer.
+    fn notify(&self, payload: &[u8]) -> Result<()> {
+        self.transport.send(&report(payload))
     }
 }
 
@@ -338,6 +403,46 @@ mod tests {
 
         assert!(matches!(result, Err(Error::Usage(_))));
         assert_eq!(board.transport.sent_count(), 0);
+    }
+
+    #[test]
+    fn reset_does_not_wait_for_an_answer() {
+        // FakeBoard::mute() has no answer queued, so a read would fail the test.
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        board.reset().unwrap();
+
+        assert_eq!(board.transport.sent_payload(1), vec![0x55]);
+    }
+
+    #[test]
+    fn entering_the_bootloader_does_not_wait_for_an_answer() {
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        board.enter_bootloader().unwrap();
+
+        assert_eq!(board.transport.sent_payload(1), vec![0x42]);
+    }
+
+    #[test]
+    fn versions_are_requested_by_selector_and_decoded() {
+        let (firmware, fw_sent) = exchange(&[0x01, 0x61, 1, 2, 3], |b| b.firmware_version(), 2);
+        let (boot, boot_sent) = exchange(&[0x01, 0x61, 0, 11, 4], |b| b.bootloader_version(), 2);
+
+        assert_eq!(fw_sent, vec![0x61, 0x02]);
+        assert_eq!(boot_sent, vec![0x61, 0x01]);
+        assert_eq!(firmware.unwrap().to_string(), "1.2.3");
+        assert_eq!(boot.unwrap().to_string(), "0.11.4");
+    }
+
+    #[test]
+    fn an_unanswered_version_falls_back_to_the_legacy_version() {
+        // Old boards do not know the command and leave the answer empty.
+        let (firmware, _) = exchange(&[0x00], |b| b.firmware_version(), 2);
+        let (boot, _) = exchange(&[0x00], |b| b.bootloader_version(), 2);
+
+        assert_eq!(firmware.unwrap(), LEGACY_FIRMWARE);
+        assert_eq!(boot.unwrap(), LEGACY_BOOTLOADER);
     }
 
     #[test]

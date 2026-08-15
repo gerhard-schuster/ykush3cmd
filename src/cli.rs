@@ -25,6 +25,10 @@ pub enum Command {
     ReadIo(u8),
     WriteIo(u8, bool),
     GpioControl(bool),
+    Reset,
+    Bootloader,
+    FirmwareVersion,
+    BootloaderVersion,
 }
 
 /// A command together with the board it is addressed to.
@@ -113,6 +117,11 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
         "--gpio" => {
             Command::GpioControl(enable_disable(opt.param(0, "enable or disable")?, "--gpio")?)
         }
+
+        "--reset" => Command::Reset,
+        "--boot" => Command::Bootloader,
+        "--firmware-version" => Command::FirmwareVersion,
+        "--bootloader-version" => Command::BootloaderVersion,
 
         _ => return Ok(None),
     };
@@ -373,6 +382,10 @@ mod tests {
         assert_eq!(cmd("-h"), Command::Help);
         assert_eq!(cmd("--help"), Command::Help);
         assert_eq!(cmd("-l"), Command::List);
+        assert_eq!(cmd("--reset"), Command::Reset);
+        assert_eq!(cmd("--boot"), Command::Bootloader);
+        assert_eq!(cmd("--firmware-version"), Command::FirmwareVersion);
+        assert_eq!(cmd("--bootloader-version"), Command::BootloaderVersion);
         assert_eq!(cmd("-v"), Command::Version);
         assert_eq!(cmd("--version"), Command::Version);
     }

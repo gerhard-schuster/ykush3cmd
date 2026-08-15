@@ -83,6 +83,16 @@ fn execute<T: Transport>(
         Command::WriteIo(gpio, high) => board.write_io(*gpio, *high)?,
         Command::GpioControl(enable) => board.gpio_control(*enable)?,
 
+        Command::Reset => board.reset()?,
+        Command::Bootloader => board.enter_bootloader()?,
+
+        Command::FirmwareVersion => {
+            writeln!(out, "Firmware {}", board.firmware_version()?)?
+        }
+        Command::BootloaderVersion => {
+            writeln!(out, "Bootloader {}", board.bootloader_version()?)?
+        }
+
         // Handled by run() before a board is opened.
         Command::Help | Command::Version | Command::List => {
             unreachable!("command does not address a board")
@@ -149,6 +159,18 @@ mod tests {
         // The C++ application only puts the level into the exit code.
         assert_eq!(output(&[0x01, 0x30, 0x01, 0x01], Command::ReadIo(1)), "1\n");
         assert_eq!(output(&[0x01, 0x30, 0x01, 0x00], Command::ReadIo(1)), "0\n");
+    }
+
+    #[test]
+    fn versions_are_printed_with_their_kind() {
+        assert_eq!(
+            output(&[0x01, 0x61, 1, 4, 0], Command::FirmwareVersion),
+            "Firmware 1.4.0\n"
+        );
+        assert_eq!(
+            output(&[0x01, 0x61, 0, 10, 0], Command::BootloaderVersion),
+            "Bootloader 0.10.0\n"
+        );
     }
 
     #[test]

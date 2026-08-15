@@ -47,6 +47,9 @@ Board.
   -l                 list the serial number of every attached board
   -s SERIAL          send the command to that board rather than to the
                      first one the system enumerates
+  --firmware-version, --bootloader-version
+  --reset            restart the board
+  --boot             stop in the bootloader, ready for a firmware image
   -v, --version      print the version of this program
   -h, --help         print this text
 
