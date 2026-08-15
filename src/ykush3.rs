@@ -1,9 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 //! YKUSH3 protocol layer.
 //!
-//! Report layout, opcodes and answer handling follow the control interface the
-//! vendor documents, so this speaks the same wire protocol as their own
-//! application.
+//! Report layout, opcodes and answer handling follow `src/ykush3/ykush3.cpp` of
+//! the C++ application, so both tools speak the same wire protocol.
 
 use std::fmt;
 
@@ -359,15 +358,6 @@ mod tests {
     use super::*;
     use crate::fake::FakeBoard;
 
-    /// Reports that the board acknowledges without further payload.
-    const ACK_I2C_CONFIG: [u8; 2] = [0x01, 0x51];
-    const ACK_I2C_TRANSFER: [u8; 2] = [0x01, 0x52];
-
-    /// Message of a command that was expected to fail.
-    fn message<T: fmt::Debug>(result: Result<T>) -> String {
-        result.expect_err("command should have failed").to_string()
-    }
-
     /// Runs `command` against a board answering with `answer` and returns the
     /// command result together with the report that was sent.
     fn exchange<R>(
@@ -381,8 +371,19 @@ mod tests {
         (result, sent)
     }
 
+    /// Reports that the board acknowledges without further payload.
+    const ACK_I2C_CONFIG: [u8; 2] = [0x01, 0x51];
+    const ACK_I2C_TRANSFER: [u8; 2] = [0x01, 0x52];
+
+    /// Message of a command that was expected to fail.
+    fn message<T: fmt::Debug>(result: Result<T>) -> String {
+        result.expect_err("command should have failed").to_string()
+    }
+
+    // -- port switching ---------------------------------------------------
+
     #[test]
-    fn port_up_sends_the_documented_opcodes() {
+    fn port_up_sends_the_opcodes_of_the_cpp_application() {
         for (port, opcode) in [
             (Port::Downstream(1), 0x11),
             (Port::Downstream(2), 0x12),
@@ -398,7 +399,7 @@ mod tests {
     }
 
     #[test]
-    fn port_down_sends_the_documented_opcodes() {
+    fn port_down_sends_the_opcodes_of_the_cpp_application() {
         for (port, opcode) in [
             (Port::Downstream(1), 0x01),
             (Port::Downstream(2), 0x02),
@@ -432,7 +433,7 @@ mod tests {
             (0x11, PortStatus { port: 1, on: true }),
             (0x02, PortStatus { port: 2, on: false }),
             (0x13, PortStatus { port: 3, on: true }),
-            // The external port is decoded the same way as the others.
+            // The C++ application does not decode the external port at all.
             (0x14, PortStatus { port: 4, on: true }),
             (0x04, PortStatus { port: 4, on: false }),
         ] {
@@ -470,6 +471,8 @@ mod tests {
         assert_eq!(board.transport.sent_count(), 0, "nothing must be sent");
     }
 
+    // -- gpio -------------------------------------------------------------
+
     #[test]
     fn read_io_returns_the_pin_level_from_the_answer() {
         let (result, sent) = exchange(&[0x01, 0x30, 0x02, 0x01], |b| b.read_io(2), 2);
@@ -496,6 +499,8 @@ mod tests {
         assert_eq!(disable, vec![0x32, 0x00]);
     }
 
+    // -- configuration ----------------------------------------------------
+
     #[test]
     fn config_port_encodes_port_and_power_on_state() {
         for (port, state, expected) in [
@@ -521,6 +526,8 @@ mod tests {
         assert_eq!(board.transport.sent_count(), 0);
     }
 
+    // -- reboot commands --------------------------------------------------
+
     #[test]
     fn reset_does_not_wait_for_an_answer() {
         // FakeBoard::mute() has no answer queued, so a read would fail the test.
@@ -540,26 +547,7 @@ mod tests {
         assert_eq!(board.transport.sent_payload(1), vec![0x42]);
     }
 
-    #[test]
-    fn versions_are_requested_by_selector_and_decoded() {
-        let (firmware, fw_sent) = exchange(&[0x01, 0x61, 1, 2, 3], |b| b.firmware_version(), 2);
-        let (boot, boot_sent) = exchange(&[0x01, 0x61, 0, 11, 4], |b| b.bootloader_version(), 2);
-
-        assert_eq!(fw_sent, vec![0x61, 0x02]);
-        assert_eq!(boot_sent, vec![0x61, 0x01]);
-        assert_eq!(firmware.unwrap().to_string(), "1.2.3");
-        assert_eq!(boot.unwrap().to_string(), "0.11.4");
-    }
-
-    #[test]
-    fn an_unanswered_version_falls_back_to_the_legacy_version() {
-        // Old boards do not know the command and leave the answer empty.
-        let (firmware, _) = exchange(&[0x00], |b| b.firmware_version(), 2);
-        let (boot, _) = exchange(&[0x00], |b| b.bootloader_version(), 2);
-
-        assert_eq!(firmware.unwrap(), LEGACY_FIRMWARE);
-        assert_eq!(boot.unwrap(), LEGACY_BOOTLOADER);
-    }
+    // -- i2c --------------------------------------------------------------
 
     #[test]
     fn i2c_modes_are_configured_by_selector() {
@@ -661,6 +649,31 @@ mod tests {
 
         assert!(message(result).contains("Unexpected answer"));
     }
+
+    // -- versions ---------------------------------------------------------
+
+    #[test]
+    fn versions_are_requested_by_selector_and_decoded() {
+        let (firmware, fw_sent) = exchange(&[0x01, 0x61, 1, 2, 3], |b| b.firmware_version(), 2);
+        let (boot, boot_sent) = exchange(&[0x01, 0x61, 0, 11, 4], |b| b.bootloader_version(), 2);
+
+        assert_eq!(fw_sent, vec![0x61, 0x02]);
+        assert_eq!(boot_sent, vec![0x61, 0x01]);
+        assert_eq!(firmware.unwrap().to_string(), "1.2.3");
+        assert_eq!(boot.unwrap().to_string(), "0.11.4");
+    }
+
+    #[test]
+    fn an_unanswered_version_falls_back_to_the_legacy_version() {
+        // Old boards do not know the command and leave the answer empty.
+        let (firmware, _) = exchange(&[0x00], |b| b.firmware_version(), 2);
+        let (boot, _) = exchange(&[0x00], |b| b.bootloader_version(), 2);
+
+        assert_eq!(firmware.unwrap(), LEGACY_FIRMWARE);
+        assert_eq!(boot.unwrap(), LEGACY_BOOTLOADER);
+    }
+
+    // -- transport errors -------------------------------------------------
 
     #[test]
     fn a_transport_error_reaches_the_caller() {

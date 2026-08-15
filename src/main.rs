@@ -120,6 +120,7 @@ fn print_boards(out: &mut impl Write, serials: &[String]) -> Result<()> {
     for (i, serial) in serials.iter().enumerate() {
         writeln!(out, "  {:>2}  {serial}", i + 1)?;
     }
+    writeln!(out)?;
 
     Ok(())
 }
@@ -153,7 +154,7 @@ mod tests {
     }
 
     #[test]
-    fn the_port_state_is_printed_as_a_line() {
+    fn the_port_state_is_printed_like_in_the_cpp_application() {
         assert_eq!(
             output(&[0x01, 0x11], Command::PortStatus(Port::Downstream(1))),
             "Port 1: on\n"
@@ -172,7 +173,7 @@ mod tests {
     }
 
     #[test]
-    fn versions_are_printed_with_their_kind() {
+    fn versions_are_printed_with_the_original_wording() {
         assert_eq!(
             output(&[0x01, 0x61, 1, 4, 0], Command::FirmwareVersion),
             "Firmware 1.4.0\n"
@@ -195,7 +196,10 @@ mod tests {
     fn switching_commands_print_nothing() {
         assert_eq!(output(&[0x01], Command::PortUp(Port::Downstream(1))), "");
         assert_eq!(output(&[0x01], Command::WriteIo(1, true)), "");
-        assert_eq!(output(&[0x01, 0x51], Command::I2cSlave(true)), "");
+        assert_eq!(
+            output(&[0x01, 0x51], Command::I2cSlave(true)),
+            ""
+        );
     }
 
     #[test]
@@ -207,35 +211,6 @@ mod tests {
 
         assert!(matches!(result, Err(Error::NoResponse)));
         assert!(out.is_empty());
-    }
-
-    #[test]
-    fn the_help_names_the_program_it_was_called_as() {
-        let mut out = Vec::new();
-
-        run("ykushcmd", &[], &mut out).unwrap();
-
-        let text = String::from_utf8(out).unwrap();
-        assert!(text.contains("Usage: ykushcmd"));
-    }
-
-    #[test]
-    fn the_version_is_printed_on_its_own() {
-        let mut out = Vec::new();
-
-        run("ykush3cmd", &["-v".to_owned()], &mut out).unwrap();
-
-        assert_eq!(
-            String::from_utf8(out).unwrap(),
-            format!("ykush3cmd {}\n", help::VERSION)
-        );
-    }
-
-    #[test]
-    fn an_unparsable_command_line_is_a_usage_error() {
-        let result = run("ykush3cmd", &["-u".to_owned(), "9".to_owned()], &mut Vec::new());
-
-        assert!(matches!(result, Err(Error::Usage(_))));
     }
 
     #[test]
@@ -259,17 +234,21 @@ mod tests {
         assert!(String::from_utf8(out).unwrap().contains("none"));
     }
 
-    /// Needs the HID stack of the operating system, but no board.
     #[test]
-    #[ignore = "needs the HID stack of the operating system"]
-    fn listing_boards_reaches_the_hid_stack() {
+    fn the_help_names_the_program_it_was_called_as() {
         let mut out = Vec::new();
 
-        run("ykush3cmd", &["-l".to_owned()], &mut out).expect("listing should work");
+        run("ykushcmd", &[], &mut out).unwrap();
 
-        assert!(String::from_utf8(out)
-            .unwrap()
-            .contains("YKUSH3 boards on this host"));
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.contains("Usage: ykushcmd"));
+        assert!(text.contains("--i2c-read"));
+    }
+
+    #[test]
+    fn the_program_name_is_taken_from_the_invocation_path() {
+        assert_eq!(program_name(&["/usr/bin/ykush3cmd".to_owned()]), "ykush3cmd");
+        assert_eq!(program_name(&[]), "ykush3cmd");
     }
 
     #[test]
@@ -312,6 +291,38 @@ mod tests {
         }
     }
 
+    #[test]
+    fn the_version_is_printed_without_addressing_a_board() {
+        let mut out = Vec::new();
+
+        run("ykush3cmd", &["-v".to_owned()], &mut out).unwrap();
+
+        assert_eq!(
+            String::from_utf8(out).unwrap(),
+            format!("ykush3cmd {}\n", help::VERSION)
+        );
+    }
+
+    /// Needs the HID stack of the operating system, but no board.
+    #[test]
+    #[ignore = "needs the HID stack of the operating system"]
+    fn listing_boards_reaches_the_hid_stack() {
+        let mut out = Vec::new();
+
+        run("ykush3cmd", &["-l".to_owned()], &mut out).expect("listing should work");
+
+        assert!(String::from_utf8(out)
+            .unwrap()
+            .contains("YKUSH3 boards on this host"));
+    }
+
+    #[test]
+    fn an_unparsable_command_line_never_reaches_a_board() {
+        let result = run("ykush3cmd", &["-u".to_owned(), "9".to_owned()], &mut Vec::new());
+
+        assert!(matches!(result, Err(Error::Usage(_))));
+    }
+
     /// Needs a YKUSH3 attached.
     /// Run with `cargo test -- --ignored --test-threads=1`.
     #[test]
@@ -323,11 +334,5 @@ mod tests {
 
         let text = String::from_utf8(out).unwrap();
         assert!(text.starts_with("Firmware "), "{text:?}");
-    }
-
-    #[test]
-    fn the_program_name_is_taken_from_the_invocation_path() {
-        assert_eq!(program_name(&["/usr/bin/ykush3cmd".to_owned()]), "ykush3cmd");
-        assert_eq!(program_name(&[]), "ykush3cmd");
     }
 }

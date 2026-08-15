@@ -6,8 +6,8 @@
 //! is a parameter of that option. Options such as `-on` or `-off` are therefore
 //! single options and not a group of short flags.
 //!
-//! Parsing produces a [`Command`] and touches no hardware, so the whole command
-//! line surface can be tested on its own.
+//! Parsing produces an [`Invocation`] and touches no hardware, so the whole
+//! command line surface can be tested on its own.
 
 use crate::error::{Error, Result};
 use crate::ykush3::{Port, PowerOnState};
@@ -163,22 +163,6 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
     Ok(Some(command))
 }
 
-/// Port of a switching command, `1|2|3|4|e|a`.
-fn port(value: &str) -> Result<Port> {
-    match value {
-        "1" => Ok(Port::Downstream(1)),
-        "2" => Ok(Port::Downstream(2)),
-        "3" => Ok(Port::Downstream(3)),
-        // The C++ application spells the external port `4` for switching and
-        // `e` for configuration. Both spellings are accepted everywhere.
-        "4" | "e" => Ok(Port::External),
-        "a" => Ok(Port::All),
-        _ => Err(Error::Usage(format!(
-            "Invalid port number '{value}', expected 1, 2, 3, 4 (external 5V), e or a (all)"
-        ))),
-    }
-}
-
 /// Splits the arguments into options. A leading board name is skipped, so both
 /// `ykush3cmd -u 1` and the `ykushcmd ykush3 -u 1` spelling work.
 fn split(args: &[String]) -> Vec<Opt> {
@@ -196,6 +180,22 @@ fn split(args: &[String]) -> Vec<Opt> {
     }
 
     opts
+}
+
+/// Port of a switching command, `1|2|3|4|e|a`.
+fn port(value: &str) -> Result<Port> {
+    match value {
+        "1" => Ok(Port::Downstream(1)),
+        "2" => Ok(Port::Downstream(2)),
+        "3" => Ok(Port::Downstream(3)),
+        // The C++ application spells the external port `4` for switching and
+        // `e` for configuration. Both spellings are accepted everywhere.
+        "4" | "e" => Ok(Port::External),
+        "a" => Ok(Port::All),
+        _ => Err(Error::Usage(format!(
+            "Invalid port number '{value}', expected 1, 2, 3, 4 (external 5V), e or a (all)"
+        ))),
+    }
 }
 
 /// GPIO pin number, `1|2|3`.
@@ -286,22 +286,30 @@ mod tests {
             .to_string()
     }
 
+    // -- grammar ----------------------------------------------------------
+
     #[test]
     fn options_collect_their_parameters() {
-        let opts = split(&args("-c 1 2"));
+        let opts = split(&args("-s YK00001 -c 1 2"));
 
         assert_eq!(
             opts,
-            vec![Opt {
-                name: "-c".into(),
-                params: vec!["1".into(), "2".into()],
-            }]
+            vec![
+                Opt { name: "-s".into(), params: vec!["YK00001".into()] },
+                Opt { name: "-c".into(), params: vec!["1".into(), "2".into()] },
+            ]
         );
     }
 
     #[test]
     fn a_leading_board_name_is_ignored() {
-        assert_eq!(cmd("ykush3 -h"), Command::Help);
+        assert_eq!(cmd("ykush3 -u 1"), Command::PortUp(Port::Downstream(1)));
+    }
+
+    #[test]
+    fn multi_character_short_options_stay_whole() {
+        assert_eq!(cmd("-on"), Command::PortUp(Port::External));
+        assert_eq!(cmd("-off"), Command::PortDown(Port::External));
     }
 
     #[test]
@@ -313,6 +321,13 @@ mod tests {
     fn an_unknown_option_is_rejected() {
         assert_eq!(usage_error("-x"), "Unknown option -x");
     }
+
+    #[test]
+    fn a_serial_number_alone_is_not_a_command() {
+        assert_eq!(usage_error("-s YK00001"), "No command given");
+    }
+
+    // -- board selection --------------------------------------------------
 
     #[test]
     fn the_serial_number_selects_the_board() {
@@ -338,14 +353,14 @@ mod tests {
     }
 
     #[test]
-    fn a_serial_number_alone_is_not_a_command() {
-        assert_eq!(usage_error("-s YK00001"), "No command given");
+    fn a_serial_number_option_needs_a_value() {
+        assert_eq!(
+            usage_error("-s -d 1"),
+            "Option -s expects a serial number"
+        );
     }
 
-    #[test]
-    fn a_serial_number_option_needs_a_value() {
-        assert_eq!(usage_error("-s -d 1"), "Option -s expects a serial number");
-    }
+    // -- port commands ----------------------------------------------------
 
     #[test]
     fn port_numbers_map_to_ports() {
@@ -354,12 +369,6 @@ mod tests {
         assert_eq!(cmd("-u a"), Command::PortUp(Port::All));
         assert_eq!(cmd("-d 2"), Command::PortDown(Port::Downstream(2)));
         assert_eq!(cmd("-g 1"), Command::PortStatus(Port::Downstream(1)));
-    }
-
-    #[test]
-    fn multi_character_short_options_stay_whole() {
-        assert_eq!(cmd("-on"), Command::PortUp(Port::External));
-        assert_eq!(cmd("-off"), Command::PortDown(Port::External));
     }
 
     #[test]
@@ -375,6 +384,19 @@ mod tests {
             Command::Config(Port::External, PowerOnState::On)
         );
     }
+
+    #[test]
+    fn an_invalid_port_number_is_rejected() {
+        assert!(usage_error("-u 9").starts_with("Invalid port number '9'"));
+        assert!(usage_error("-u x").starts_with("Invalid port number 'x'"));
+    }
+
+    #[test]
+    fn a_port_command_needs_a_port_number() {
+        assert_eq!(usage_error("-u"), "Option -u expects a port number");
+    }
+
+    // -- configuration ----------------------------------------------------
 
     #[test]
     fn the_power_on_state_is_parsed() {
@@ -398,6 +420,8 @@ mod tests {
         assert_eq!(usage_error("-c 1"), "Option -c expects a configuration value");
     }
 
+    // -- gpio -------------------------------------------------------------
+
     #[test]
     fn gpio_commands_are_parsed() {
         assert_eq!(cmd("-r 2"), Command::ReadIo(2));
@@ -414,23 +438,7 @@ mod tests {
         assert!(usage_error("--gpio on").starts_with("Invalid value 'on' for --gpio"));
     }
 
-    #[test]
-    fn an_invalid_port_number_is_rejected() {
-        assert!(usage_error("-u 9").starts_with("Invalid port number '9'"));
-        assert!(usage_error("-u x").starts_with("Invalid port number 'x'"));
-    }
-
-    #[test]
-    fn a_port_command_needs_a_port_number() {
-        assert_eq!(usage_error("-u"), "Option -u expects a port number");
-    }
-
-    #[test]
-    fn the_first_command_on_the_line_wins() {
-        // Same rule as in the C++ application, which returns after the first
-        // command it recognises.
-        assert_eq!(cmd("-u 1 -d 2"), Command::PortUp(Port::Downstream(1)));
-    }
+    // -- i2c --------------------------------------------------------------
 
     #[test]
     fn i2c_mode_commands_are_parsed() {
@@ -483,16 +491,25 @@ mod tests {
         assert!(usage_error("--i2c-read 0x20 x").starts_with("Invalid number of bytes"));
     }
 
+    // -- remaining commands -----------------------------------------------
+
     #[test]
     fn the_plain_commands_are_parsed() {
-        assert_eq!(cmd("-h"), Command::Help);
-        assert_eq!(cmd("--help"), Command::Help);
         assert_eq!(cmd("-l"), Command::List);
         assert_eq!(cmd("--reset"), Command::Reset);
         assert_eq!(cmd("--boot"), Command::Bootloader);
         assert_eq!(cmd("--firmware-version"), Command::FirmwareVersion);
         assert_eq!(cmd("--bootloader-version"), Command::BootloaderVersion);
+        assert_eq!(cmd("-h"), Command::Help);
+        assert_eq!(cmd("--help"), Command::Help);
         assert_eq!(cmd("-v"), Command::Version);
         assert_eq!(cmd("--version"), Command::Version);
+    }
+
+    #[test]
+    fn the_first_command_on_the_line_wins() {
+        // Same rule as in the C++ application, which returns after the first
+        // command it recognises.
+        assert_eq!(cmd("-u 1 -d 2"), Command::PortUp(Port::Downstream(1)));
     }
 }

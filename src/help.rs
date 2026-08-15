@@ -83,7 +83,7 @@ mod tests {
     use crate::fake::FailingWriter;
 
     #[test]
-    fn the_help_names_the_version_and_the_usage() {
+    fn the_help_names_the_version_the_usage_and_the_options() {
         let mut out = Vec::new();
 
         print_all(&mut out, "ykush3cmd").unwrap();
@@ -91,6 +91,8 @@ mod tests {
         let text = String::from_utf8(out).unwrap();
         assert!(text.contains(&format!("ykush3cmd {VERSION}")));
         assert!(text.contains("Usage: ykush3cmd"));
+        assert!(text.contains("--i2c-write"));
+        assert!(text.contains("--bootloader-version"));
     }
 
     #[test]
