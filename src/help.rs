@@ -22,9 +22,20 @@ pub fn print_options(out: &mut impl Write) -> Result<()> {
     write!(
         out,
         "
+Ports. The number 4 addresses the separate 5V output, the letter a every
+downstream port at once.
+
+  -u PORT            power the port up            PORT = 1|2|3|4|a
+  -d PORT            power the port down          PORT = 1|2|3|4|a
+  -g PORT            report whether it is on      PORT = 1|2|3|4
+  -on                shorthand for -u 4
+  -off               shorthand for -d 4
+
 Board.
 
   -l                 list the serial number of every attached board
+  -s SERIAL          send the command to that board rather than to the
+                     first one the system enumerates
   -v, --version      print the version of this program
   -h, --help         print this text
 

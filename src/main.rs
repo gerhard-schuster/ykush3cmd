@@ -13,6 +13,7 @@ mod cli;
 mod device;
 mod error;
 mod help;
+mod ykush3;
 
 #[cfg(test)]
 mod fake;
@@ -22,7 +23,9 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use cli::Command;
+use device::Transport;
 use error::{Error, Result};
+use ykush3::Ykush3;
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().collect();
@@ -48,11 +51,39 @@ fn main() -> ExitCode {
 }
 
 fn run(program: &str, args: &[String], out: &mut impl Write) -> Result<()> {
-    match cli::parse(args)? {
+    let invocation = cli::parse(args)?;
+
+    match &invocation.command {
+        // Commands that do not address a single board.
         Command::Help => help::print_all(out, program),
         Command::Version => help::print_version(out),
         Command::List => print_boards(out, &device::list()?),
+
+        command => {
+            let board = Ykush3::open(invocation.serial.as_deref())?;
+            execute(&board, command, out)
+        }
     }
+}
+
+/// Runs a command against an opened board and prints what it returns.
+fn execute<T: Transport>(
+    board: &Ykush3<T>,
+    command: &Command,
+    out: &mut impl Write,
+) -> Result<()> {
+    match command {
+        Command::PortUp(port) => board.port_up(*port)?,
+        Command::PortDown(port) => board.port_down(*port)?,
+        Command::PortStatus(port) => writeln!(out, "{}", board.port_status(*port)?)?,
+
+        // Handled by run() before a board is opened.
+        Command::Help | Command::Version | Command::List => {
+            unreachable!("command does not address a board")
+        }
+    }
+
+    Ok(())
 }
 
 fn print_boards(out: &mut impl Write, serials: &[String]) -> Result<()> {
@@ -81,6 +112,47 @@ fn program_name(args: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fake::FakeBoard;
+    use crate::ykush3::Port;
+
+    /// Runs a command against a board answering with `answer` and returns what
+    /// was printed.
+    fn output(answer: &[u8], command: Command) -> String {
+        let board = Ykush3::with_transport(FakeBoard::answering(answer));
+        let mut out = Vec::new();
+
+        execute(&board, &command, &mut out).expect("command should succeed");
+
+        String::from_utf8(out).expect("output should be utf-8")
+    }
+
+    #[test]
+    fn the_port_state_is_printed_as_a_line() {
+        assert_eq!(
+            output(&[0x01, 0x11], Command::PortStatus(Port::Downstream(1))),
+            "Port 1: on\n"
+        );
+        assert_eq!(
+            output(&[0x01, 0x02], Command::PortStatus(Port::Downstream(2))),
+            "Port 2: off\n"
+        );
+    }
+
+    #[test]
+    fn switching_commands_print_nothing() {
+        assert_eq!(output(&[0x01], Command::PortUp(Port::Downstream(1))), "");
+    }
+
+    #[test]
+    fn a_failing_command_is_reported_and_prints_nothing() {
+        let board = Ykush3::with_transport(FakeBoard::failing(Error::NoResponse));
+        let mut out = Vec::new();
+
+        let result = execute(&board, &Command::PortStatus(Port::Downstream(1)), &mut out);
+
+        assert!(matches!(result, Err(Error::NoResponse)));
+        assert!(out.is_empty());
+    }
 
     #[test]
     fn the_help_names_the_program_it_was_called_as() {
@@ -106,7 +178,7 @@ mod tests {
 
     #[test]
     fn an_unparsable_command_line_is_a_usage_error() {
-        let result = run("ykush3cmd", &["-x".to_owned()], &mut Vec::new());
+        let result = run("ykush3cmd", &["-u".to_owned(), "9".to_owned()], &mut Vec::new());
 
         assert!(matches!(result, Err(Error::Usage(_))));
     }
