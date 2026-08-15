@@ -1,0 +1,33 @@
+# Configuration for cargo-deny. Run it with:
+#
+#     cargo install cargo-deny --locked
+#     cargo deny check
+
+[advisories]
+# Anything with a published advisory fails the check.
+yanked = "deny"
+
+[licenses]
+# Exactly the two licenses that appear in the tree today. Anything else is meant
+# to fail, so that a new dependency under different terms gets looked at rather
+# than waved through.
+allow = [
+    "Apache-2.0",
+    "MIT",
+]
+confidence-threshold = 0.93
+
+# A note this check cannot make itself: the hidapi crate is MIT, but it carries
+# the HIDAPI C library, which offers a choice of GPL-3.0, a BSD-Style license or
+# its own original one. The BSD one is the choice made here — see NOTICE. Only
+# the crate license is visible to cargo-deny.
+
+[bans]
+# Two versions of the same crate in one binary is a smell worth seeing.
+multiple-versions = "warn"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
