@@ -273,6 +273,59 @@ mod tests {
     }
 
     #[test]
+    fn every_command_that_addresses_the_board_is_dispatched() {
+        use crate::ykush3::PowerOnState;
+
+        let answered: Vec<(Vec<u8>, Command)> = vec![
+            (vec![0x01], Command::PortUp(Port::All)),
+            (vec![0x01], Command::PortDown(Port::Downstream(2))),
+            (
+                vec![0x01],
+                Command::Config(Port::Downstream(1), PowerOnState::Persist),
+            ),
+            (vec![0x01], Command::WriteIo(2, false)),
+            (vec![0x01], Command::GpioControl(false)),
+            (vec![0x01, 0x51], Command::I2cSlave(true)),
+            (vec![0x01, 0x51], Command::I2cMaster(false)),
+            (vec![0x01, 0x51], Command::I2cSetAddress(0xa6)),
+            (vec![0x01, 0x52], Command::I2cWrite(0x20, vec![0x01])),
+            (vec![0x01, 0x61, 1, 2, 0], Command::BootloaderVersion),
+        ];
+
+        for (answer, command) in answered {
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+
+            execute(&board, &command, &mut Vec::new())
+                .unwrap_or_else(|err| panic!("{command:?} failed: {err}"));
+
+            assert_eq!(board.transport().sent_count(), 1, "{command:?}");
+        }
+
+        // These two make the board reboot, so it never answers.
+        for command in [Command::Reset, Command::Bootloader] {
+            let board = Ykush3::with_transport(FakeBoard::mute());
+
+            execute(&board, &command, &mut Vec::new())
+                .unwrap_or_else(|err| panic!("{command:?} failed: {err}"));
+
+            assert_eq!(board.transport().sent_count(), 1, "{command:?}");
+        }
+    }
+
+    /// Needs a YKUSH3 attached.
+    /// Run with `cargo test -- --ignored --test-threads=1`.
+    #[test]
+    #[ignore = "needs a YKUSH3 attached"]
+    fn a_read_only_command_reaches_a_real_board() {
+        let mut out = Vec::new();
+
+        run("ykush3cmd", &["--firmware-version".to_owned()], &mut out).unwrap();
+
+        let text = String::from_utf8(out).unwrap();
+        assert!(text.starts_with("Firmware "), "{text:?}");
+    }
+
+    #[test]
     fn the_program_name_is_taken_from_the_invocation_path() {
         assert_eq!(program_name(&["/usr/bin/ykush3cmd".to_owned()]), "ykush3cmd");
         assert_eq!(program_name(&[]), "ykush3cmd");

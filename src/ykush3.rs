@@ -140,6 +140,12 @@ impl<T: Transport> Ykush3<T> {
         Ykush3 { transport }
     }
 
+    /// The transport underneath, so tests can inspect what was sent.
+    #[cfg(test)]
+    pub fn transport(&self) -> &T {
+        &self.transport
+    }
+
     /// Powers a port up.
     pub fn port_up(&self, port: Port) -> Result<()> {
         self.request(&[op::PORT_UP | port.code()])?;
