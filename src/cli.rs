@@ -29,6 +29,11 @@ pub enum Command {
     Bootloader,
     FirmwareVersion,
     BootloaderVersion,
+    I2cSlave(bool),
+    I2cMaster(bool),
+    I2cSetAddress(u8),
+    I2cWrite(u8, Vec<u8>),
+    I2cRead(u8, u8),
 }
 
 /// A command together with the board it is addressed to.
@@ -123,6 +128,35 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
         "--firmware-version" => Command::FirmwareVersion,
         "--bootloader-version" => Command::BootloaderVersion,
 
+        "--i2c-slave" => Command::I2cSlave(enable_disable(
+            opt.param(0, "enable or disable")?,
+            "--i2c-slave",
+        )?),
+        "--i2c-master" => Command::I2cMaster(enable_disable(
+            opt.param(0, "enable or disable")?,
+            "--i2c-master",
+        )?),
+        "--i2c-set-address" => {
+            Command::I2cSetAddress(hex_byte(opt.param(0, "an I2C address")?)?)
+        }
+        "--i2c-write" => {
+            let address = hex_byte(opt.param(0, "an I2C address")?)?;
+            if opt.params.len() < 2 {
+                return Err(Error::Usage(
+                    "Option --i2c-write expects at least one data byte".into(),
+                ));
+            }
+            let data = opt.params[1..]
+                .iter()
+                .map(|b| hex_byte(b))
+                .collect::<Result<Vec<u8>>>()?;
+            Command::I2cWrite(address, data)
+        }
+        "--i2c-read" => Command::I2cRead(
+            hex_byte(opt.param(0, "an I2C address")?)?,
+            count(opt.param(1, "a number of bytes")?)?,
+        ),
+
         _ => return Ok(None),
     };
 
@@ -208,6 +242,27 @@ fn enable_disable(value: &str, option: &str) -> Result<bool> {
             "Invalid value '{value}' for {option}, expected enable or disable"
         ))),
     }
+}
+
+/// A byte written in hexadecimal, with or without the `0x` prefix.
+fn hex_byte(value: &str) -> Result<u8> {
+    let digits = value
+        .strip_prefix("0x")
+        .or_else(|| value.strip_prefix("0X"))
+        .unwrap_or(value);
+
+    u8::from_str_radix(digits, 16).map_err(|_| {
+        Error::Usage(format!(
+            "Invalid hexadecimal byte '{value}', expected for example 0x2a"
+        ))
+    })
+}
+
+/// A decimal byte count.
+fn count(value: &str) -> Result<u8> {
+    value
+        .parse()
+        .map_err(|_| Error::Usage(format!("Invalid number of bytes '{value}'")))
 }
 
 #[cfg(test)]
@@ -375,6 +430,57 @@ mod tests {
         // Same rule as in the C++ application, which returns after the first
         // command it recognises.
         assert_eq!(cmd("-u 1 -d 2"), Command::PortUp(Port::Downstream(1)));
+    }
+
+    #[test]
+    fn i2c_mode_commands_are_parsed() {
+        assert_eq!(cmd("--i2c-slave enable"), Command::I2cSlave(true));
+        assert_eq!(cmd("--i2c-master disable"), Command::I2cMaster(false));
+        assert_eq!(cmd("--i2c-set-address 0x2a"), Command::I2cSetAddress(0x2a));
+    }
+
+    #[test]
+    fn an_invalid_i2c_mode_value_is_rejected() {
+        assert!(usage_error("--i2c-slave on").starts_with("Invalid value 'on' for --i2c-slave"));
+        assert!(usage_error("--i2c-master 1").starts_with("Invalid value '1' for --i2c-master"));
+        assert_eq!(
+            usage_error("--i2c-slave"),
+            "Option --i2c-slave expects enable or disable"
+        );
+    }
+
+    #[test]
+    fn i2c_write_takes_a_variable_number_of_bytes() {
+        assert_eq!(
+            cmd("--i2c-write 0x20 0x01 0xff"),
+            Command::I2cWrite(0x20, vec![0x01, 0xff])
+        );
+    }
+
+    #[test]
+    fn i2c_write_needs_at_least_one_data_byte() {
+        assert_eq!(
+            usage_error("--i2c-write 0x20"),
+            "Option --i2c-write expects at least one data byte"
+        );
+    }
+
+    #[test]
+    fn i2c_read_takes_a_decimal_length() {
+        assert_eq!(cmd("--i2c-read 0x20 12"), Command::I2cRead(0x20, 12));
+    }
+
+    #[test]
+    fn hex_bytes_parse_with_and_without_prefix() {
+        assert_eq!(cmd("--i2c-set-address 2a"), Command::I2cSetAddress(0x2a));
+        assert_eq!(cmd("--i2c-set-address 0X2A"), Command::I2cSetAddress(0x2a));
+        assert!(usage_error("--i2c-set-address zz").starts_with("Invalid hexadecimal byte"));
+        assert!(usage_error("--i2c-set-address 0x1ff").starts_with("Invalid hexadecimal byte"));
+    }
+
+    #[test]
+    fn an_invalid_byte_count_is_rejected() {
+        assert!(usage_error("--i2c-read 0x20 x").starts_with("Invalid number of bytes"));
     }
 
     #[test]

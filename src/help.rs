@@ -42,6 +42,17 @@ GPIO. Three pins, driven from the host once the control interface is off.
                      the like-numbered port according to the level it sees
   --gpio disable     take the pins back for -r and -w
 
+I2C. Enabling either mode makes the board re-enumerate; it stays enabled
+across resets and power cuts. Addresses are hexadecimal, 7 bit, aligned to
+the top of the byte: write 0xA2 for address 0x51.
+
+  --i2c-slave enable|disable    let an outside master switch the ports
+  --i2c-master enable|disable   let this host reach devices on the bus
+  --i2c-set-address ADDR        the address the board answers to as a slave
+  --i2c-write ADDR BYTE...      put bytes on the bus, at most 60
+  --i2c-read ADDR COUNT         take bytes off the bus, at most 60,
+                                one per line as a decimal number
+
 Board.
 
   -l                 list the serial number of every attached board

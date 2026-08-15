@@ -10,6 +10,9 @@ use std::fmt;
 use crate::device::{report, Board, Report, Transport};
 use crate::error::{Error, Result};
 
+/// Largest payload that fits into a single I2C transfer report.
+pub const I2C_MAX_BYTES: usize = 60;
+
 /// A switchable power port of the board.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Port {
@@ -103,11 +106,17 @@ mod op {
     pub const IO_CONTROL: u8 = 0x32;
     pub const PORT_CONFIG: u8 = 0x41;
     pub const BOOTLOADER: u8 = 0x42;
+    pub const I2C_CONFIG: u8 = 0x51;
+    pub const I2C_TRANSFER: u8 = 0x52;
     pub const RESET: u8 = 0x55;
     pub const VERSION: u8 = 0x61;
 
     /// First byte of a successful answer.
     pub const ACK: u8 = 0x01;
+    /// Status of an I2C transfer: the board is not in master mode.
+    pub const I2C_NOT_MASTER: u8 = 0x02;
+    /// Status of an I2C transfer: the transfer on the bus failed.
+    pub const I2C_BUS_ERROR: u8 = 0x03;
 }
 
 /// Firmware versions before 1.1.0 do not know the version command.
@@ -211,6 +220,61 @@ impl<T: Transport> Ykush3<T> {
         self.notify(&[op::BOOTLOADER])
     }
 
+    /// Enables or disables I2C slave mode.
+    pub fn i2c_slave(&self, enable: bool) -> Result<()> {
+        self.i2c_config(0x01, u8::from(enable))
+    }
+
+    /// Enables or disables I2C master mode.
+    pub fn i2c_master(&self, enable: bool) -> Result<()> {
+        self.i2c_config(0x02, u8::from(enable))
+    }
+
+    /// Sets the I2C slave address of the board.
+    pub fn i2c_set_address(&self, address: u8) -> Result<()> {
+        self.i2c_config(0x03, address)
+    }
+
+    /// Writes bytes to an I2C slave device.
+    ///
+    /// The board does not report a missing acknowledge from the slave: on an
+    /// empty bus the write is reported as successful.
+    pub fn i2c_write(&self, address: u8, data: &[u8]) -> Result<()> {
+        if data.is_empty() {
+            return Err(Error::Usage("No data to write".into()));
+        }
+        if data.len() > I2C_MAX_BYTES {
+            return Err(Error::Usage(format!(
+                "At most {I2C_MAX_BYTES} bytes can be written in one transfer"
+            )));
+        }
+
+        let mut req = vec![op::I2C_TRANSFER, 0x01, address, data.len() as u8];
+        req.extend_from_slice(data);
+
+        let resp = self.request(&req)?;
+        expect_i2c_ack(&resp)
+    }
+
+    /// Reads bytes from an I2C slave device.
+    ///
+    /// An absent slave is not reported as an error: the board returns the idle
+    /// bus level, so every byte reads back as `0xff`.
+    pub fn i2c_read(&self, address: u8, len: u8) -> Result<Vec<u8>> {
+        if usize::from(len) > I2C_MAX_BYTES {
+            return Err(Error::Usage(format!(
+                "At most {I2C_MAX_BYTES} bytes can be read in one transfer"
+            )));
+        }
+
+        let resp = self.request(&[op::I2C_TRANSFER, 0x02, address, len])?;
+        expect_i2c_ack(&resp)?;
+
+        // The board reports how many bytes it actually got from the slave.
+        let read = usize::from(resp[2]).min(I2C_MAX_BYTES);
+        Ok(resp[3..3 + read].to_vec())
+    }
+
     /// Firmware version of the board.
     pub fn firmware_version(&self) -> Result<Version> {
         self.version(0x02, LEGACY_FIRMWARE)
@@ -236,6 +300,11 @@ impl<T: Transport> Ykush3<T> {
         })
     }
 
+    fn i2c_config(&self, selector: u8, value: u8) -> Result<()> {
+        let resp = self.request(&[op::I2C_CONFIG, selector, value])?;
+        expect_ack(&resp, op::I2C_CONFIG)
+    }
+
     /// Sends a command and returns the answer.
     fn request(&self, payload: &[u8]) -> Result<Report> {
         self.transport.transfer(&report(payload))
@@ -247,10 +316,51 @@ impl<T: Transport> Ykush3<T> {
     }
 }
 
+fn expect_ack(resp: &Report, opcode: u8) -> Result<()> {
+    if resp[0] == op::ACK && resp[1] == opcode {
+        return Ok(());
+    }
+
+    Err(Error::Device(format!(
+        "The board rejected the command (answer 0x{:02x} 0x{:02x})",
+        resp[0], resp[1]
+    )))
+}
+
+/// Checks the answer to an I2C transfer, whose status byte carries a reason.
+fn expect_i2c_ack(resp: &Report) -> Result<()> {
+    if resp[1] != op::I2C_TRANSFER {
+        return Err(Error::Device(format!(
+            "Unexpected answer to an I2C command (0x{:02x} 0x{:02x})",
+            resp[0], resp[1]
+        )));
+    }
+
+    match resp[0] {
+        op::ACK => Ok(()),
+        op::I2C_NOT_MASTER => Err(Error::Device(
+            "The board is not in I2C master mode, enable it with --i2c-master enable".into(),
+        )),
+        op::I2C_BUS_ERROR => Err(Error::Device("I2C transmission error".into())),
+        status => Err(Error::Device(format!(
+            "The board reported an unknown I2C status (0x{status:02x})"
+        ))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::fake::FakeBoard;
+
+    /// Reports that the board acknowledges without further payload.
+    const ACK_I2C_CONFIG: [u8; 2] = [0x01, 0x51];
+    const ACK_I2C_TRANSFER: [u8; 2] = [0x01, 0x52];
+
+    /// Message of a command that was expected to fail.
+    fn message<T: fmt::Debug>(result: Result<T>) -> String {
+        result.expect_err("command should have failed").to_string()
+    }
 
     /// Runs `command` against a board answering with `answer` and returns the
     /// command result together with the report that was sent.
@@ -443,6 +553,107 @@ mod tests {
 
         assert_eq!(firmware.unwrap(), LEGACY_FIRMWARE);
         assert_eq!(boot.unwrap(), LEGACY_BOOTLOADER);
+    }
+
+    #[test]
+    fn i2c_modes_are_configured_by_selector() {
+        let (_, slave_on) = exchange(&ACK_I2C_CONFIG, |b| b.i2c_slave(true), 3);
+        let (_, slave_off) = exchange(&ACK_I2C_CONFIG, |b| b.i2c_slave(false), 3);
+        let (_, master_on) = exchange(&ACK_I2C_CONFIG, |b| b.i2c_master(true), 3);
+        let (_, address) = exchange(&ACK_I2C_CONFIG, |b| b.i2c_set_address(0x2a), 3);
+
+        assert_eq!(slave_on, vec![0x51, 0x01, 0x01]);
+        assert_eq!(slave_off, vec![0x51, 0x01, 0x00]);
+        assert_eq!(master_on, vec![0x51, 0x02, 0x01]);
+        assert_eq!(address, vec![0x51, 0x03, 0x2a]);
+    }
+
+    #[test]
+    fn i2c_config_reports_a_rejected_command() {
+        let (result, _) = exchange(&[0x00, 0x51], |b| b.i2c_slave(true), 3);
+
+        assert!(matches!(result, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn i2c_write_carries_address_length_and_payload() {
+        let (result, sent) = exchange(
+            &ACK_I2C_TRANSFER,
+            |b| b.i2c_write(0x20, &[0xaa, 0xbb, 0xcc]),
+            7,
+        );
+
+        assert!(result.is_ok());
+        assert_eq!(sent, vec![0x52, 0x01, 0x20, 0x03, 0xaa, 0xbb, 0xcc]);
+    }
+
+    #[test]
+    fn i2c_write_rejects_more_than_the_report_holds() {
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        let result = board.i2c_write(0x20, &[0xff; I2C_MAX_BYTES + 1]);
+
+        assert!(matches!(result, Err(Error::Usage(_))));
+        assert_eq!(board.transport.sent_count(), 0);
+    }
+
+    #[test]
+    fn i2c_write_needs_data() {
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        assert!(matches!(board.i2c_write(0x20, &[]), Err(Error::Usage(_))));
+    }
+
+    #[test]
+    fn i2c_read_requests_and_returns_the_bytes() {
+        let (result, sent) = exchange(
+            &[0x01, 0x52, 0x03, 0xde, 0xad, 0xbe, 0xef],
+            |b| b.i2c_read(0x20, 3),
+            4,
+        );
+
+        assert_eq!(sent, vec![0x52, 0x02, 0x20, 0x03]);
+        // Only the three bytes the board reports, not the trailing 0xef.
+        assert_eq!(result.unwrap(), vec![0xde, 0xad, 0xbe]);
+    }
+
+    #[test]
+    fn i2c_read_sends_the_length_as_a_single_byte() {
+        // The C++ dec2bin() writes one byte per decimal digit and corrupts the
+        // report for lengths of ten bytes and more.
+        let (_, sent) = exchange(&[0x01, 0x52, 0x00], |b| b.i2c_read(0x20, 12), 4);
+
+        assert_eq!(sent, vec![0x52, 0x02, 0x20, 12]);
+    }
+
+    #[test]
+    fn i2c_read_rejects_more_than_the_report_holds() {
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        let result = board.i2c_read(0x20, 61);
+
+        assert!(matches!(result, Err(Error::Usage(_))));
+        assert_eq!(board.transport.sent_count(), 0);
+    }
+
+    #[test]
+    fn an_i2c_transfer_names_the_reason_it_failed() {
+        // The status byte values are the ones the board answers with; 0x02 was
+        // observed on firmware 1.5.0 with master mode switched off.
+        let (not_master, _) = exchange(&[0x02, 0x52], |b| b.i2c_write(0x20, &[0x01]), 5);
+        let (bus_error, _) = exchange(&[0x03, 0x52], |b| b.i2c_read(0x20, 2), 4);
+        let (unknown, _) = exchange(&[0x7f, 0x52], |b| b.i2c_read(0x20, 2), 4);
+
+        assert!(message(not_master).contains("not in I2C master mode"));
+        assert!(message(bus_error).contains("I2C transmission error"));
+        assert!(message(unknown).contains("0x7f"));
+    }
+
+    #[test]
+    fn an_answer_to_the_wrong_command_is_reported_as_such() {
+        let (result, _) = exchange(&[0x01, 0x41], |b| b.i2c_read(0x20, 2), 4);
+
+        assert!(message(result).contains("Unexpected answer"));
     }
 
     #[test]

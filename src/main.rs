@@ -93,6 +93,16 @@ fn execute<T: Transport>(
             writeln!(out, "Bootloader {}", board.bootloader_version()?)?
         }
 
+        Command::I2cSlave(enable) => board.i2c_slave(*enable)?,
+        Command::I2cMaster(enable) => board.i2c_master(*enable)?,
+        Command::I2cSetAddress(address) => board.i2c_set_address(*address)?,
+        Command::I2cWrite(address, data) => board.i2c_write(*address, data)?,
+        Command::I2cRead(address, len) => {
+            for byte in board.i2c_read(*address, *len)? {
+                writeln!(out, "{byte}")?;
+            }
+        }
+
         // Handled by run() before a board is opened.
         Command::Help | Command::Version | Command::List => {
             unreachable!("command does not address a board")
@@ -174,9 +184,18 @@ mod tests {
     }
 
     #[test]
+    fn an_i2c_read_prints_one_decimal_byte_per_line() {
+        assert_eq!(
+            output(&[0x01, 0x52, 0x03, 0x01, 0x0a, 0xff], Command::I2cRead(0x20, 3)),
+            "1\n10\n255\n"
+        );
+    }
+
+    #[test]
     fn switching_commands_print_nothing() {
         assert_eq!(output(&[0x01], Command::PortUp(Port::Downstream(1))), "");
         assert_eq!(output(&[0x01], Command::WriteIo(1, true)), "");
+        assert_eq!(output(&[0x01, 0x51], Command::I2cSlave(true)), "");
     }
 
     #[test]
