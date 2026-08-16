@@ -33,13 +33,18 @@ switching over:
 
   - only the YKUSH3 board is covered; YKUSH, YKUSH2 and YKUSHXS are not
   - the messages are worded differently, so a script that parses the output of
-    the original has to be adapted; exit codes are unaffected
+    the original has to be adapted
+  - a command the board rejects exits with 1; the original never reads the
+    answer and exits with 0
   - the state of the external 5V port is decoded, which the original omits
   - the length of an I2C read is transmitted as a single byte, correcting a
     conversion in the original that corrupts the report for ten bytes and more
   - a GPIO read prints its value instead of only setting the exit code
   - control characters in a device supplied serial number are replaced before
     the string reaches the terminal
+
+The full and current list of deliberate behavioural differences is the table
+"Where it differs from the C++ original" in the README.
 
 
 Third party components
