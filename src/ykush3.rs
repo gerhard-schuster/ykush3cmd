@@ -27,7 +27,13 @@ impl Port {
     /// Port number as used in the low nibble of the port opcodes.
     fn code(self) -> u8 {
         match self {
-            Port::Downstream(n) => n,
+            // The mask keeps a stray value out of the opcode nibble, where
+            // 0x42 would turn a switching command into BOOTLOADER and 0x45
+            // into RESET. The command line only ever produces 1 to 3.
+            Port::Downstream(n) => {
+                debug_assert!((1..=3).contains(&n), "downstream port out of range: {n}");
+                n & 0x0f
+            }
             Port::External => 0x4,
             Port::All => 0xa,
         }
@@ -155,13 +161,13 @@ impl<T: Transport> Ykush3<T> {
 
     /// Powers a port up.
     pub fn port_up(&self, port: Port) -> Result<()> {
-        self.request(&[op::PORT_UP | port.code()])?;
+        self.request_acked(&[op::PORT_UP | port.code()])?;
         Ok(())
     }
 
     /// Powers a port down.
     pub fn port_down(&self, port: Port) -> Result<()> {
-        self.request(&[op::PORT_DOWN | port.code()])?;
+        self.request_acked(&[op::PORT_DOWN | port.code()])?;
         Ok(())
     }
 
@@ -173,7 +179,7 @@ impl<T: Transport> Ykush3<T> {
             ));
         }
 
-        let resp = self.request(&[op::PORT_STATUS | port.code()])?;
+        let resp = self.request_acked(&[op::PORT_STATUS | port.code()])?;
 
         // The answer carries the port number in the low nibble and the
         // switching state in the high nibble.
@@ -194,19 +200,20 @@ impl<T: Transport> Ykush3<T> {
     /// Reads the level of a GPIO pin.
     pub fn read_io(&self, gpio: u8) -> Result<u8> {
         let resp = self.request(&[op::IO_READ, gpio])?;
+        expect_ack(&resp, op::IO_READ)?;
         Ok(resp[3])
     }
 
     /// Drives a GPIO pin high or low.
     pub fn write_io(&self, gpio: u8, high: bool) -> Result<()> {
-        self.request(&[op::IO_WRITE, gpio, u8::from(high)])?;
+        self.request_acked(&[op::IO_WRITE, gpio, u8::from(high)])?;
         Ok(())
     }
 
     /// Enables or disables the GPIO control interface. Takes effect on the next
     /// reset or power-on of the board.
     pub fn gpio_control(&self, enable: bool) -> Result<()> {
-        self.request(&[op::IO_CONTROL, u8::from(enable)])?;
+        self.request_acked(&[op::IO_CONTROL, u8::from(enable)])?;
         Ok(())
     }
 
@@ -218,7 +225,7 @@ impl<T: Transport> Ykush3<T> {
             ));
         }
 
-        self.request(&[op::PORT_CONFIG, port.code(), state.code()])?;
+        self.request_acked(&[op::PORT_CONFIG, port.code(), state.code()])?;
         Ok(())
     }
 
@@ -321,6 +328,23 @@ impl<T: Transport> Ykush3<T> {
     /// Sends a command and returns the answer.
     fn request(&self, payload: &[u8]) -> Result<Report> {
         self.transport.transfer(&report(payload))
+    }
+
+    /// Sends a command and returns the answer, requiring the ACK status byte.
+    ///
+    /// For the port and GPIO commands the C++ application never looks at the
+    /// answer, so a rejected command passes as a success there. The board does
+    /// set the status byte, which is checked here; what follows it differs by
+    /// command and is left to the caller.
+    fn request_acked(&self, payload: &[u8]) -> Result<Report> {
+        let resp = self.request(payload)?;
+        if resp[0] != op::ACK {
+            return Err(Error::Device(format!(
+                "The board rejected the command (answer 0x{:02x})",
+                resp[0]
+            )));
+        }
+        Ok(resp)
     }
 
     /// Sends a command that the board does not answer.
@@ -456,6 +480,58 @@ mod tests {
         let (result, _) = exchange(&[0x01, 0x55], |b| b.port_status(Port::Downstream(1)), 1);
 
         assert!(matches!(result, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn a_state_change_the_board_does_not_acknowledge_is_an_error() {
+        // Every command that changes state must surface a missing ACK instead
+        // of treating whatever came back as a success.
+        let rejected: Vec<(&str, Result<()>)> = vec![
+            (
+                "port_up",
+                exchange(&[0x00], |b| b.port_up(Port::Downstream(1)), 1).0,
+            ),
+            (
+                "port_down",
+                exchange(&[0x00], |b| b.port_down(Port::All), 1).0,
+            ),
+            (
+                "config_port",
+                exchange(
+                    &[0x00],
+                    |b| b.config_port(Port::Downstream(2), PowerOnState::On),
+                    3,
+                )
+                .0,
+            ),
+            ("write_io", exchange(&[0x00], |b| b.write_io(1, true), 3).0),
+            (
+                "gpio_control",
+                exchange(&[0x00], |b| b.gpio_control(true), 2).0,
+            ),
+        ];
+
+        for (name, result) in rejected {
+            assert!(matches!(result, Err(Error::Device(_))), "{name}");
+        }
+    }
+
+    #[test]
+    fn a_port_status_the_board_does_not_acknowledge_is_an_error() {
+        // 0x11 in the second byte would decode as "port 1 on" — without the
+        // status byte check the rejection would read as a valid state.
+        let (result, _) = exchange(&[0x00, 0x11], |b| b.port_status(Port::Downstream(1)), 1);
+
+        assert!(matches!(result, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn a_gpio_read_answered_with_the_wrong_opcode_is_an_error() {
+        let (no_ack, _) = exchange(&[0x00, 0x30, 0x02, 0x01], |b| b.read_io(2), 2);
+        let (wrong_echo, _) = exchange(&[0x01, 0x41, 0x02, 0x01], |b| b.read_io(2), 2);
+
+        assert!(matches!(no_ack, Err(Error::Device(_))));
+        assert!(matches!(wrong_echo, Err(Error::Device(_))));
     }
 
     #[test]
@@ -690,5 +766,33 @@ mod tests {
         let result = board.port_up(Port::Downstream(1));
 
         assert!(matches!(result, Err(Error::NoResponse)));
+    }
+
+    /// Needs a YKUSH3 attached.
+    /// Run with `cargo test -- --ignored --test-threads=1`.
+    mod hardware {
+        use super::*;
+
+        /// Checks that the firmware really sets the ACK byte on a switching
+        /// command, which `request_acked` relies on. The port is set to the
+        /// state it already has, so the test changes nothing.
+        #[test]
+        #[ignore = "needs a YKUSH3 attached"]
+        fn a_switching_command_is_acknowledged_by_the_board() {
+            let board = Ykush3::open(None).expect("the first board should open");
+            let port = Port::Downstream(1);
+
+            let status = board
+                .port_status(port)
+                .expect("status should be acknowledged");
+
+            if status.on {
+                board.port_up(port).expect("port up should be acknowledged");
+            } else {
+                board
+                    .port_down(port)
+                    .expect("port down should be acknowledged");
+            }
+        }
     }
 }

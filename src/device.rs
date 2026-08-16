@@ -100,6 +100,14 @@ impl Transport for Board {
         if read == 0 {
             return Err(Error::NoResponse);
         }
+        // The board always answers with a full report. Anything shorter would
+        // leave the zero padding of the buffer to be read as answer bytes, so
+        // it is rejected rather than interpreted.
+        if read != REPORT_SIZE {
+            return Err(Error::Device(format!(
+                "Truncated answer from the board: {read} of {REPORT_SIZE} bytes"
+            )));
+        }
 
         Ok(resp)
     }
@@ -107,9 +115,19 @@ impl Transport for Board {
     fn send(&self, out: &Report) -> Result<()> {
         // hidapi expects the report id in the first byte. The board uses
         // unnumbered reports, so a leading zero is prepended.
+        //
+        // Unlike the read above, the write has no timeout: hidapi offers no
+        // timed variant, so a device that stalls its endpoint blocks here for
+        // as long as the operating system lets it.
         let mut buf = [0u8; REPORT_SIZE + 1];
         buf[1..].copy_from_slice(out);
-        self.dev.write(&buf)?;
+        let written = self.dev.write(&buf)?;
+        if written != buf.len() {
+            return Err(Error::Device(format!(
+                "Truncated write to the board: {written} of {} bytes",
+                buf.len()
+            )));
+        }
         Ok(())
     }
 }

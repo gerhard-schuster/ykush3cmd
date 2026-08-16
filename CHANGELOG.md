@@ -12,6 +12,14 @@ Notable changes, newest first. The format follows
   run. Anywhere else the build now stops with a message saying so, rather than
   producing a binary nobody has tried.
 
+### Fixed
+
+- Port and GPIO commands now check the board's acknowledgement. Before, as in
+  the C++ application, a rejected command still exited with 0 and a script had
+  no way of noticing.
+- An answer report shorter than the fixed 64 bytes is rejected instead of
+  having its missing bytes read as zeros.
+
 ## 0.1.0 — 2026-08-15
 
 First release. A control program for the Yepkit YKUSH3, written in Rust against
