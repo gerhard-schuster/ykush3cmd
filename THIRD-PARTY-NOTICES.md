@@ -27,6 +27,7 @@ These run during the build and leave no code in the resulting binary:
 | Component | Version | License |
 |---|---|---|
 | [cc](https://crates.io/crates/cc) | 1.4.2 | MIT OR Apache-2.0 |
+| [find-msvc-tools](https://crates.io/crates/find-msvc-tools) | 0.1.10 | MIT OR Apache-2.0 |
 | [pkg-config](https://crates.io/crates/pkg-config) | 0.3.33 | MIT OR Apache-2.0 |
 | [shlex](https://crates.io/crates/shlex) | 2.0.1 | MIT OR Apache-2.0 |
 
@@ -55,8 +56,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-To regenerate this list after a dependency change:
+To regenerate this list after a dependency change — the build-time crates are
+part of it, which `--edges normal` alone would not show:
 
 ```
-cargo tree --edges normal --prefix none
+cargo tree --edges normal,build --prefix none
 ```
