@@ -1,2 +1,5 @@
 /target
 .DS_Store
+# Instrumented test binaries drop these next to where they run when
+# LLVM_PROFILE_FILE is not set, see the coverage section of the README.
+*.profraw

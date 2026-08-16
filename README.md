@@ -330,14 +330,15 @@ exercised without one:
 | Condition | Lines | When measured |
 |---|---|---|
 | no board attached | 95.76 % | 2026-08-16, this state, reproducible by anyone |
-| board attached | 99.29 % | 2026-08-15, before the formatting, macOS-only and hardening commits |
+| board attached | 98.48 % | 2026-08-16, this state, board `Y3N13808` on firmware 1.5.0 |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
 misses a single line without a board. The 56 lines missing without a board are mostly in
 `device.rs`: opening the device, and the transfer and send paths behind it.
 
-With a board attached, the measurement above left three lines, and the hardening added two
-branches of the same kind — reachable only with a misbehaving device:
+With a board attached, what remains unreached is the residue below — plus the untaken half
+of the hardware test that re-applies the port state it finds, since only one of its two
+branches can run on any given day:
 
 | Place | Why it cannot be reached |
 |---|---|
@@ -372,13 +373,13 @@ binary has to be the last object, otherwise `main()` is missing from the figures
 Against a YKUSH3 with serial number `Y3N13808`, firmware 1.5.0, bootloader 1.2.0, on macOS
 running on Apple silicon. Nothing was attached to the downstream ports.
 
-This record predates the answer checking added afterwards. The seventh hardware test, which
-pins the ACK the board sets on a switching command, has not met a board yet — it is the
-first thing to run when one is attached again.
+The answer checking added after the first run of this record was validated against the same
+board on 2026-08-16, still on firmware 1.5.0: all seven hardware tests pass, including the
+one that pins the ACK the board sets on a switching command.
 
 | Area | What was run | Result |
 |---|---|---|
-| Test suite | `cargo test -- --ignored --test-threads=1` | 6 hardware tests pass |
+| Test suite | `cargo test -- --ignored --test-threads=1` | 7 hardware tests pass |
 | Enumeration | `-l`, `-s <serial>`, an unknown serial | correct, unknown serial exits 1 |
 | Versions | firmware, bootloader | 1.5.0 / 1.2.0 |
 | Port switching | `-d`/`-u` singly and with `a`, each read back with `-g` | correct |
