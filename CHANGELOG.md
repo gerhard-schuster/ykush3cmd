@@ -28,6 +28,10 @@ Notable changes, newest first. The format follows
 - Control characters in a command line argument are replaced before an error
   message echoes the argument, closing the same terminal escape route that was
   already closed for serial numbers a device reports.
+- The CI workflows now grant the token read access only, stop persisting
+  credentials into the checkout, pin the actions to commits instead of movable
+  tags, and pin the cargo-deny version so the audit tool no longer sits frozen
+  in a stale cache.
 
 ## 0.1.0 — 2026-08-15
 
