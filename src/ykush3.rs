@@ -439,6 +439,7 @@ fn expect_i2c_ack(resp: &Report) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::device::REPORT_SIZE;
     use crate::fake::FakeBoard;
 
     /// Runs `command` against a board answering with `answer` and returns the
@@ -906,6 +907,246 @@ mod tests {
         let result = board.port_up(Port::Downstream(1));
 
         assert!(matches!(result, Err(Error::NoResponse)));
+    }
+
+    // -- generated answers -------------------------------------------------
+
+    /// Xorshift64. A swept search needs no dependency for this, and rolling
+    /// it here keeps the crate at the single one it has.
+    fn xorshift(state: &mut u64) -> u64 {
+        let mut x = *state;
+        x ^= x << 13;
+        x ^= x >> 7;
+        x ^= x << 17;
+        *state = x;
+        x
+    }
+
+    /// Constants rather than anything the clock decides: a failure has to be
+    /// reproducible from its own message. Raising either widens the sweep.
+    const SWEEP_SEED: u64 = 0x594b_5553_4833_0001;
+    const SWEEP_ROUNDS: usize = 4000;
+
+    /// An answer for the protocol layer to chew on. Every fourth one is
+    /// uniform noise, the rest is a correct answer with up to three bytes
+    /// disturbed.
+    ///
+    /// The mixture is the point. Noise alone hits the interesting case
+    /// almost never: an answer that is right except for one nibble — correct
+    /// status byte, correct opcode, wrong port. That is where a gap in the
+    /// validation would hide, and random bytes carry an acknowledgement only
+    /// once in 256 tries.
+    fn generated_answer(state: &mut u64, valid: &Report) -> Report {
+        if xorshift(state) % 4 == 0 {
+            let mut answer: Report = [0; REPORT_SIZE];
+            for chunk in answer.chunks_mut(8) {
+                chunk.copy_from_slice(&xorshift(state).to_le_bytes());
+            }
+            return answer;
+        }
+
+        let mut answer = *valid;
+        for _ in 0..=(xorshift(state) % 3) {
+            let at = (xorshift(state) % REPORT_SIZE as u64) as usize;
+            answer[at] = (xorshift(state) >> 32) as u8;
+        }
+        answer
+    }
+
+    fn swept(round: usize, answer: &Report) -> String {
+        format!("seed 0x{SWEEP_SEED:016x}, round {round}, answer {answer:02x?}")
+    }
+
+    /// Sweeps generated answers past every command that reads one and holds
+    /// each result to the answer it came from.
+    ///
+    /// The named tests above pin a handful of chosen answers; this one makes
+    /// the same statements about thousands. That the test returns at all is
+    /// the other half of it: no generated answer may panic a parser, which is
+    /// what a hostile device would aim for.
+    #[test]
+    fn a_generated_answer_is_accepted_only_when_it_answers_the_request() {
+        let mut state = SWEEP_SEED;
+
+        for round in 0..SWEEP_ROUNDS {
+            // A port status must describe the port that was asked about.
+            let answer = generated_answer(&mut state, &report(&[0x01, 0x12]));
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if let Ok(status) = board.port_status(Port::Downstream(2)) {
+                let ctx = swept(round, &answer);
+                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
+                assert_eq!(answer[1] & 0x0f, 2, "answer for another port — {ctx}");
+                assert_eq!(status.port, 2, "reported another port — {ctx}");
+                assert_eq!(status.on, (answer[1] >> 4) != 0, "state nibble — {ctx}");
+            }
+
+            // A GPIO read must carry the level of the pin that was asked for.
+            let answer = generated_answer(&mut state, &report(&[0x01, 0x30, 0x03, 0x01]));
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if let Ok(level) = board.read_io(3) {
+                let ctx = swept(round, &answer);
+                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
+                assert_eq!(answer[1], 0x30, "answer to another command — {ctx}");
+                assert_eq!(answer[2], 3, "level of another pin — {ctx}");
+                assert_eq!(level, answer[3], "level not the one reported — {ctx}");
+            }
+
+            // A switching command may only pass on an acknowledgement.
+            let answer = generated_answer(&mut state, &report(&[0x01]));
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if board.port_up(Port::Downstream(1)).is_ok() {
+                assert_eq!(
+                    answer[0],
+                    0x01,
+                    "switched without acknowledgement — {}",
+                    swept(round, &answer)
+                );
+            }
+
+            // An I2C read may never hand out more than was asked for, and
+            // only the bytes the board says it got.
+            let mut valid: Report = [0; REPORT_SIZE];
+            valid[..7].copy_from_slice(&[0x01, 0x52, 0x04, 0xde, 0xad, 0xbe, 0xef]);
+            let answer = generated_answer(&mut state, &valid);
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if let Ok(data) = board.i2c_read(0x20, 4) {
+                let ctx = swept(round, &answer);
+                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
+                assert_eq!(answer[1], 0x52, "answer to another command — {ctx}");
+                assert!(data.len() <= 4, "more bytes than requested — {ctx}");
+                assert_eq!(
+                    data.len(),
+                    usize::from(answer[2]),
+                    "not the reported length — {ctx}"
+                );
+                assert_eq!(
+                    data.as_slice(),
+                    &answer[3..3 + data.len()],
+                    "not the reported bytes — {ctx}"
+                );
+            }
+
+            // An I2C write is a bare acknowledgement, on the I2C opcode.
+            let answer = generated_answer(&mut state, &report(&[0x01, 0x52]));
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if board.i2c_write(0x20, &[0xaa]).is_ok() {
+                let ctx = swept(round, &answer);
+                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
+                assert_eq!(answer[1], 0x52, "answer to another command — {ctx}");
+            }
+
+            // A version is either the exact empty shape of an old board or an
+            // acknowledged version answer. Never a guess.
+            let answer = generated_answer(&mut state, &report(&[0x01, 0x61, 1, 5, 0]));
+            let board = Ykush3::with_transport(FakeBoard::answering(&answer));
+            if let Ok(version) = board.firmware_version() {
+                let ctx = swept(round, &answer);
+                if answer.iter().all(|&b| b == 0) {
+                    assert_eq!(
+                        version, LEGACY_FIRMWARE,
+                        "empty answer, other version — {ctx}"
+                    );
+                } else {
+                    assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
+                    assert_eq!(answer[1], 0x61, "answer to another command — {ctx}");
+                    assert_eq!(
+                        (version.major, version.minor, version.patch),
+                        (answer[2], answer[3], answer[4]),
+                        "version not the one reported — {ctx}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The chosen counterpart to the sweep above.
+    ///
+    /// Generated answers find breadth; they do not find the ends of a range,
+    /// because an off-by-one is a single point in a space of 2^512. These are
+    /// the answers a hostile device would try on purpose and the boundaries
+    /// where a mistake would sit.
+    #[test]
+    fn edge_case_answers_are_handled_the_way_the_protocol_says() {
+        let answering = |bytes: &Report| Ykush3::with_transport(FakeBoard::answering(bytes));
+
+        // A device that simply holds every line high.
+        let all_high: Report = [0xff; REPORT_SIZE];
+        assert!(
+            answering(&all_high)
+                .port_status(Port::Downstream(1))
+                .is_err(),
+            "all 0xff, port status"
+        );
+        assert!(
+            answering(&all_high).read_io(1).is_err(),
+            "all 0xff, gpio read"
+        );
+        assert!(
+            answering(&all_high).port_up(Port::Downstream(1)).is_err(),
+            "all 0xff, switching"
+        );
+        assert!(
+            answering(&all_high).i2c_read(0x20, 4).is_err(),
+            "all 0xff, i2c read"
+        );
+        assert!(
+            answering(&all_high).firmware_version().is_err(),
+            "all 0xff, version"
+        );
+
+        // The port nibble at both ends of the byte. Neither is port 1.
+        for nibble in [0x00, 0x0f] {
+            let answer = report(&[0x01, nibble]);
+            assert!(
+                answering(&answer).port_status(Port::Downstream(1)).is_err(),
+                "port nibble 0x{nibble:02x}"
+            );
+        }
+
+        // The echoed GPIO pin at both ends.
+        for pin in [0x00, 0xff] {
+            let answer = report(&[0x01, 0x30, pin, 0x01]);
+            assert!(
+                answering(&answer).read_io(1).is_err(),
+                "echoed pin 0x{pin:02x}"
+            );
+        }
+
+        // The C++ application accepts 0x61 as the status of a version answer
+        // as well as 0x01. Not copying that tolerance is deliberate, so this
+        // has to be an error rather than a version.
+        let answer = report(&[0x61, 0x61, 9, 9, 9]);
+        assert!(
+            answering(&answer).firmware_version().is_err(),
+            "version answered with status 0x61"
+        );
+
+        // The largest transfer the protocol allows, filled to its last byte.
+        let mut full: Report = [0; REPORT_SIZE];
+        full[..3].copy_from_slice(&[0x01, 0x52, I2C_MAX_BYTES as u8]);
+        for (i, slot) in full[3..3 + I2C_MAX_BYTES].iter_mut().enumerate() {
+            *slot = i as u8;
+        }
+        let data = answering(&full)
+            .i2c_read(0x20, I2C_MAX_BYTES as u8)
+            .expect("the largest legal transfer must go through");
+        assert_eq!(data.len(), I2C_MAX_BYTES);
+        assert_eq!(
+            data[I2C_MAX_BYTES - 1],
+            (I2C_MAX_BYTES - 1) as u8,
+            "the last byte of the payload area"
+        );
+
+        // One byte beyond what the protocol holds, and one byte beyond what
+        // was asked for. Both are the board contradicting itself.
+        for (reported, requested) in [(I2C_MAX_BYTES as u8 + 1, I2C_MAX_BYTES as u8), (5, 4)] {
+            let mut over: Report = [0; REPORT_SIZE];
+            over[..3].copy_from_slice(&[0x01, 0x52, reported]);
+            assert!(
+                answering(&over).i2c_read(0x20, requested).is_err(),
+                "{reported} reported for {requested} requested"
+            );
+        }
     }
 
     /// Needs a YKUSH3 attached.

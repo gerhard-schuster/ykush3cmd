@@ -304,7 +304,7 @@ command line application.
 ## Tests
 
 ```
-cargo test                                    # 97 tests and a doctest, no
+cargo test                                    # 99 tests and a doctest, no
                                               # hardware needed
 cargo test -- --ignored --test-threads=1      # 9 more: 7 need a board, 2 only
                                               # the HID stack of the system
@@ -321,12 +321,12 @@ down with it — SIGTRAP on macOS.
 | Group | Tests | Subject |
 |---|---|---|
 | `cli` | 30 | grammar, board selection, every command, every error message |
-| `ykush3` | 37 | the bytes each command sends, reading answers, error paths |
+| `ykush3` | 39 | the bytes each command sends, reading answers, error paths, a swept and a hand-picked pass over generated answers |
 | `main` | 13 | output format, dispatch of every command, program name |
 | `error`, `help`, `device`, `sanitize` | 8 | error texts, help output, report padding, the control character filter |
 | `tests/cli.rs` | 9 | the built binary: exit codes, stdout versus stderr |
 | doctest | 1 | the library example compiles; `no_run`, since it needs a board |
-| **running without hardware** | **97 + 1** | |
+| **running without hardware** | **99 + 1** | |
 | `--ignored`, needs a board | 7 | opening and real exchanges, the acknowledged switch, the echoed pin and port |
 | `--ignored`, needs only the HID stack | 2 | enumeration when nothing is attached |
 
@@ -343,12 +343,13 @@ exercised without one:
 
 | Condition | Lines | When measured |
 |---|---|---|
-| no board attached | 95.99 % | 2026-08-16, this state, reproducible by anyone |
+| no board attached | 96.22 % | 2026-08-16, this state, reproducible by anyone |
 | board attached | 98.59 % | 2026-08-16, this state, board `Y3N13808` on firmware 1.5.0 |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
-misses two lines without a board. The 57 lines missing without a board are mostly in
-`device.rs`: opening the device, and the transfer and send paths behind it.
+misses four lines. The 59 lines missing without a board are mostly in `device.rs`: opening
+the device, and the transfer and send paths behind it. A few of the rest are the failure
+messages of assertions that a passing test never reaches.
 
 With a board attached, what remains unreached is the residue below — plus the untaken half
 of the hardware test that re-applies the port state it finds, since only one of its two
