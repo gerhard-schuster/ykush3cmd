@@ -29,7 +29,7 @@ With a Rust toolchain (1.74 or newer) installed, building and installing is one 
 no clone needed:
 
 ```
-cargo install --locked --tag v0.2.0 --git https://github.com/gerhard-schuster/ykush3cmd
+cargo install --locked --tag v0.3.0 --git https://github.com/gerhard-schuster/ykush3cmd
 ```
 
 This puts `ykush3cmd` into `~/.cargo/bin`. The `--locked` matters: without it, cargo
