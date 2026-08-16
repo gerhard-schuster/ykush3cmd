@@ -36,7 +36,11 @@ pub trait Transport {
 }
 
 /// Pads a command payload to a full report.
-pub fn report(payload: &[u8]) -> Report {
+///
+/// Crate-internal on purpose: the debug assertion below is the only length
+/// guard, which is fine for the fixed payloads of this crate but would be an
+/// implicit panic in a public interface.
+pub(crate) fn report(payload: &[u8]) -> Report {
     debug_assert!(payload.len() <= REPORT_SIZE);
 
     let mut buf: Report = [0; REPORT_SIZE];

@@ -35,9 +35,7 @@ mod ykush3;
 #[cfg(any(test, feature = "fake"))]
 pub mod fake;
 
-pub use crate::device::{
-    list, report, Board, Report, Transport, PRODUCT_ID, REPORT_SIZE, VENDOR_ID,
-};
+pub use crate::device::{list, Board, Report, Transport, PRODUCT_ID, REPORT_SIZE, VENDOR_ID};
 pub use crate::error::{Error, Result};
 pub use crate::sanitize::sanitize;
 pub use crate::ykush3::{Port, PortStatus, PowerOnState, Version, Ykush3, I2C_MAX_BYTES};

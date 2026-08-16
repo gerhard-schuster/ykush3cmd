@@ -42,7 +42,16 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for Error {
+    /// The underlying error where one is kept. `Hid` deliberately carries
+    /// only the message, see the variant.
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Error::Io(e) => Some(e),
+            _ => None,
+        }
+    }
+}
 
 impl From<hidapi::HidError> for Error {
     fn from(e: hidapi::HidError) -> Self {
@@ -107,5 +116,16 @@ mod tests {
 
         assert!(matches!(hid, Error::Hid(_)));
         assert!(matches!(io, Error::Io(_)));
+    }
+
+    #[test]
+    fn an_output_error_exposes_its_source() {
+        use std::error::Error as _;
+
+        let io: Error = io_error().into();
+        let device = Error::Device("the board said no".into());
+
+        assert!(io.source().is_some(), "Io keeps the underlying error");
+        assert!(device.source().is_none(), "Device carries only a message");
     }
 }

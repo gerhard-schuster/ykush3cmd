@@ -53,7 +53,9 @@ Every push builds and tests on macOS, see
 ## Using it
 
 The **switches** are compatible with the original, and a leading `ykush3` is accepted and
-ignored so existing invocations keep working:
+ignored so existing invocations keep working. What the original tolerated silently — a
+stray first word, a second `-s` — is an error here; the
+[differences table](#where-it-differs-from-the-c-original) has the full list:
 
 ```
 ykush3cmd -u 1
@@ -302,9 +304,9 @@ command line application.
 ## Tests
 
 ```
-cargo test                                    # 87 tests and a doctest, no
+cargo test                                    # 97 tests and a doctest, no
                                               # hardware needed
-cargo test -- --ignored --test-threads=1      # 7 more: 5 need a board, 2 only
+cargo test -- --ignored --test-threads=1      # 9 more: 7 need a board, 2 only
                                               # the HID stack of the system
 ```
 
@@ -318,14 +320,14 @@ down with it — SIGTRAP on macOS.
 
 | Group | Tests | Subject |
 |---|---|---|
-| `cli` | 27 | grammar, board selection, every command, every error message |
-| `ykush3` | 31 | the bytes each command sends, reading answers, error paths |
+| `cli` | 30 | grammar, board selection, every command, every error message |
+| `ykush3` | 37 | the bytes each command sends, reading answers, error paths |
 | `main` | 13 | output format, dispatch of every command, program name |
-| `error`, `help`, `device`, `sanitize` | 7 | error texts, help output, report padding, the control character filter |
+| `error`, `help`, `device`, `sanitize` | 8 | error texts, help output, report padding, the control character filter |
 | `tests/cli.rs` | 9 | the built binary: exit codes, stdout versus stderr |
 | doctest | 1 | the library example compiles; `no_run`, since it needs a board |
-| **running without hardware** | **87 + 1** | |
-| `--ignored`, needs a board | 5 | opening with and without a serial number, real exchanges, an acknowledged switch |
+| **running without hardware** | **97 + 1** | |
+| `--ignored`, needs a board | 7 | opening and real exchanges, the acknowledged switch, the echoed pin and port |
 | `--ignored`, needs only the HID stack | 2 | enumeration when nothing is attached |
 
 The `FakeBoard` transport records what a command sends and feeds prepared answers back.
@@ -341,11 +343,11 @@ exercised without one:
 
 | Condition | Lines | When measured |
 |---|---|---|
-| no board attached | 95.76 % | 2026-08-16, this state, reproducible by anyone |
-| board attached | 98.48 % | 2026-08-16, this state, board `Y3N13808` on firmware 1.5.0 |
+| no board attached | 95.99 % | 2026-08-16, this state, reproducible by anyone |
+| board attached | 98.48 % | 2026-08-16, board `Y3N13808` on firmware 1.5.0, before the answer-correlation pass |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
-misses a single line without a board. The 56 lines missing without a board are mostly in
+misses two lines without a board. The 57 lines missing without a board are mostly in
 `device.rs`: opening the device, and the transfer and send paths behind it.
 
 With a board attached, what remains unreached is the residue below — plus the untaken half
@@ -386,8 +388,10 @@ Against a YKUSH3 with serial number `Y3N13808`, firmware 1.5.0, bootloader 1.2.0
 running on Apple silicon. Nothing was attached to the downstream ports.
 
 The answer checking added after the first run of this record was validated against the same
-board on 2026-08-16, still on firmware 1.5.0: all seven hardware tests pass, including the
-one that pins the ACK the board sets on a switching command.
+board on 2026-08-16, still on firmware 1.5.0: all seven hardware tests of that state pass,
+including the one that pins the ACK the board sets on a switching command. Two checks added
+afterwards — the echoed GPIO pin and the external port status — have their own ignored
+tests and await the next attached board.
 
 | Area | What was run | Result |
 |---|---|---|
@@ -446,8 +450,15 @@ What turned up beyond what the documentation says:
 | an invalid port number | help with no explanation | a specific error message |
 | `--reset`, `--boot` | wait for an answer the board no longer sends | send without reading |
 | `-s` after the command | is ignored | works wherever it appears |
+| `-s` given twice | the last one wins silently | rejected as ambiguous |
+| a stray first word (`ykushcmd foo -u 1`) | silently skipped | rejected with a message |
 | the external port | `4` for switching, `e` for configuring | both spellings everywhere |
 | I2C error status | only `0x00`/`0x01` told apart, otherwise a silent `0` | `0x02` and `0x03` are reported in words |
+| a command the board rejects | still exits with `0`, the answer is never read | the ACK is checked, exit `1` |
+| an answer shorter than 64 bytes | missing bytes read as zeros | rejected as truncated |
+| a garbled version answer | reported as the legacy version `1.0.0` | an error instead of a guess |
+| a status answer for the wrong port or pin | taken at face value | rejected — the answer must match the request |
+| an I2C answer claiming more bytes than asked | clamped and returned | rejected |
 | messages | — | worded independently, see [License](#license) |
 
 ## Driving a YKUR relay board over I2C

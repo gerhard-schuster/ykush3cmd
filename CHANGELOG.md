@@ -20,6 +20,8 @@ Notable changes, newest first. The format follows
   other free-standing first word is an error instead of being skipped — and
   a second `-s` on one line is rejected instead of the first silently
   winning.
+- `report()` is no longer part of the library's public interface, and
+  `Error::source()` hands out the underlying error of an output failure.
 
 ## 0.2.0 — 2026-08-16
 
