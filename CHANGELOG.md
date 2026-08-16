@@ -4,7 +4,11 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.2.0 — 2026-08-16
+
+Hardening after a security audit, and a library underneath the command line.
+Scripts that only look at the exit status get stricter behaviour on purpose:
+a command the board rejects now exits with 1 instead of passing silently.
 
 ### Added
 
