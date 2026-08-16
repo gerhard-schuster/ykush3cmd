@@ -16,6 +16,10 @@ Notable changes, newest first. The format follows
   requested is rejected instead of clamped. Each of these was taken at face
   value before, as the C++ application does.
 - GPIO numbers are validated in the library, not only in the command line.
+- Only the literal word `ykush3` is accepted as a leading board name — any
+  other free-standing first word is an error instead of being skipped — and
+  a second `-s` on one line is rejected instead of the first silently
+  winning.
 
 ## 0.2.0 — 2026-08-16
 

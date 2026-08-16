@@ -61,7 +61,14 @@ impl Opt {
 
 /// Interprets the arguments, without the program name.
 pub fn parse(args: &[String]) -> Result<Invocation> {
-    let opts = split(args);
+    // The C++ application is driven as `ykushcmd ykush3 ...`, so that one
+    // leading board name is accepted and skipped. Only that word: any other
+    // free-standing token is a mistake worth reporting, not ignoring.
+    let args = match args.first() {
+        Some(name) if name == "ykush3" => &args[1..],
+        _ => args,
+    };
+    let opts = split(args)?;
 
     let Some(first) = opts.first() else {
         return Ok(Invocation {
@@ -71,11 +78,19 @@ pub fn parse(args: &[String]) -> Result<Invocation> {
     };
 
     // The serial number selects the board for whichever command follows, so it
-    // is picked up before the command itself.
-    let serial = match opts.iter().find(|o| o.name == "-s") {
+    // is picked up before the command itself. Two serial numbers on one line
+    // have no meaning — silently taking the first could address the wrong
+    // board.
+    let mut serials = opts.iter().filter(|o| o.name == "-s");
+    let serial = match serials.next() {
         Some(opt) => Some(opt.param(0, "a serial number")?.to_owned()),
         None => None,
     };
+    if serials.next().is_some() {
+        return Err(Error::Usage(
+            "The serial number can only be given once".into(),
+        ));
+    }
 
     for opt in &opts {
         if opt.name == "-s" {
@@ -161,9 +176,10 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
     Ok(Some(command))
 }
 
-/// Splits the arguments into options. A leading board name is skipped, so both
-/// `ykush3cmd -u 1` and the `ykushcmd ykush3 -u 1` spelling work.
-fn split(args: &[String]) -> Vec<Opt> {
+/// Splits the arguments into options. A token that belongs to no option is
+/// rejected — the only free-standing token with a meaning is the leading
+/// board name, and `parse()` takes that off beforehand.
+fn split(args: &[String]) -> Result<Vec<Opt>> {
     let mut opts: Vec<Opt> = Vec::new();
 
     for arg in args {
@@ -174,10 +190,12 @@ fn split(args: &[String]) -> Vec<Opt> {
             });
         } else if let Some(last) = opts.last_mut() {
             last.params.push(arg.clone());
+        } else {
+            return Err(Error::Usage(format!("Unexpected argument '{arg}'")));
         }
     }
 
-    opts
+    Ok(opts)
 }
 
 /// Port of a switching command, `1|2|3|4|e|a`.
@@ -290,7 +308,7 @@ mod tests {
 
     #[test]
     fn options_collect_their_parameters() {
-        let opts = split(&args("-s YK00001 -c 1 2"));
+        let opts = split(&args("-s YK00001 -c 1 2")).unwrap();
 
         assert_eq!(
             opts,
@@ -310,6 +328,21 @@ mod tests {
     #[test]
     fn a_leading_board_name_is_ignored() {
         assert_eq!(cmd("ykush3 -u 1"), Command::PortUp(Port::Downstream(1)));
+    }
+
+    #[test]
+    fn any_other_leading_word_is_rejected() {
+        // Only the board name of the C++ invocation is accepted; anything
+        // else in that position is a mistake, not something to skip.
+        assert_eq!(usage_error("garbage -u 1"), "Unexpected argument 'garbage'");
+        assert_eq!(usage_error("ykush2 -u 1"), "Unexpected argument 'ykush2'");
+    }
+
+    #[test]
+    fn extra_parameters_after_a_command_are_tolerated() {
+        // C++ parity: the original reads the parameters it needs and ignores
+        // the rest of the line.
+        assert_eq!(cmd("-u 1 2"), Command::PortUp(Port::Downstream(1)));
     }
 
     #[test]
@@ -361,6 +394,16 @@ mod tests {
     #[test]
     fn a_serial_number_option_needs_a_value() {
         assert_eq!(usage_error("-s -d 1"), "Option -s expects a serial number");
+    }
+
+    #[test]
+    fn a_second_serial_number_is_rejected() {
+        // Silently taking the first of two would address the wrong board
+        // half the time.
+        assert_eq!(
+            usage_error("-s A -s B -d 1"),
+            "The serial number can only be given once"
+        );
     }
 
     // -- port commands ----------------------------------------------------
