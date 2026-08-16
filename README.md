@@ -251,8 +251,8 @@ real HID device. `execute()` writes into an `impl Write`, so the output can be c
 ## Tests
 
 ```
-cargo test                                    # 81 tests, no hardware needed
-cargo test -- --ignored --test-threads=1      # 6 more: 4 need a board, 2 only
+cargo test                                    # 87 tests, no hardware needed
+cargo test -- --ignored --test-threads=1      # 7 more: 5 need a board, 2 only
                                               # the HID stack of the system
 ```
 
@@ -267,12 +267,12 @@ down with it — SIGTRAP on macOS.
 | Group | Tests | Subject |
 |---|---|---|
 | `cli` | 27 | grammar, board selection, every command, every error message |
-| `ykush3` | 27 | the bytes each command sends, reading answers, error paths |
+| `ykush3` | 30 | the bytes each command sends, reading answers, error paths |
 | `main` | 13 | output format, dispatch of every command, program name |
-| `error`, `help`, `fake`, `device` | 7 | error texts, help output, test doubles, report padding |
-| `tests/cli.rs` | 7 | the built binary: exit codes, stdout versus stderr |
-| **running without hardware** | **81** | |
-| `--ignored`, needs a board | 4 | opening with and without a serial number, a real exchange |
+| `error`, `help`, `fake`, `device`, `sanitize` | 8 | error texts, help output, test doubles, report padding, the control character filter |
+| `tests/cli.rs` | 9 | the built binary: exit codes, stdout versus stderr |
+| **running without hardware** | **87** | |
+| `--ignored`, needs a board | 5 | opening with and without a serial number, real exchanges, an acknowledged switch |
 | `--ignored`, needs only the HID stack | 2 | enumeration when nothing is attached |
 
 The `FakeBoard` transport records what a command sends and feeds prepared answers back.
@@ -288,19 +288,21 @@ exercised without one:
 
 | Condition | Lines | When measured |
 |---|---|---|
-| no board attached | 96.14 % | 2026-08-15, this state, reproducible by anyone |
-| board attached | 99.29 % | 2026-08-15, before the formatting and macOS-only commits |
+| no board attached | 95.66 % | 2026-08-16, this state, reproducible by anyone |
+| board attached | 99.29 % | 2026-08-15, before the formatting, macOS-only and hardening commits |
 
-`cli.rs`, `ykush3.rs`, `error.rs` and `fake.rs` are at 100 % either way. The 45 lines
-missing without a board are almost all in `device.rs`: opening the device, and the transfer
-and send paths behind it.
+`cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
+misses a single line without a board. The 57 lines missing without a board are mostly in
+`device.rs`: opening the device, and the transfer and send paths behind it.
 
-With a board attached, three lines are left, each for a good reason:
+With a board attached, the measurement above left three lines, and the hardening added two
+branches of the same kind — reachable only with a misbehaving device:
 
 | Place | Why it cannot be reached |
 |---|---|
 | `device.rs` — `Error::HidInit` | only fires when the operating system's `hid_init()` fails |
 | `device.rs` — `Error::NoResponse` | would need a device that returns a zero length report |
+| `device.rs` — truncated read, truncated write | would need a device that delivers or takes only part of a report |
 | `main.rs` — `unreachable!()` | help, version and listing are handled before a board is opened, so the branch is dead by construction |
 
 Reaching 100 % would take contortions. Turning a documented invariant panic into an error
@@ -325,6 +327,10 @@ The built binary has to be the third object, otherwise `main()` is missing from 
 
 Against a YKUSH3 with serial number `Y3N13808`, firmware 1.5.0, bootloader 1.2.0, on macOS
 running on Apple silicon. Nothing was attached to the downstream ports.
+
+This record predates the answer checking added afterwards. The seventh hardware test, which
+pins the ACK the board sets on a switching command, has not met a board yet — it is the
+first thing to run when one is attached again.
 
 | Area | What was run | Result |
 |---|---|---|

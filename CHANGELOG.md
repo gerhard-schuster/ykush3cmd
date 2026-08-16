@@ -19,6 +19,15 @@ Notable changes, newest first. The format follows
   no way of noticing.
 - An answer report shorter than the fixed 64 bytes is rejected instead of
   having its missing bytes read as zeros.
+- An argument that is not valid Unicode ends in a usage error instead of a
+  crash, and an empty argument vector — which `execve` permits — shows the
+  help instead of crashing.
+
+### Security
+
+- Control characters in a command line argument are replaced before an error
+  message echoes the argument, closing the same terminal escape route that was
+  already closed for serial numbers a device reports.
 
 ## 0.1.0 — 2026-08-15
 

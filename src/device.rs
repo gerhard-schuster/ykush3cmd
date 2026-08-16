@@ -8,6 +8,7 @@ use std::sync::OnceLock;
 use hidapi::{HidApi, HidDevice};
 
 use crate::error::{Error, Result};
+use crate::sanitize::sanitize;
 
 /// Microchip vendor id used by all Yepkit boards.
 pub const VENDOR_ID: u16 = 0x04D8;
@@ -137,17 +138,6 @@ pub fn list() -> Result<Vec<String>> {
     Ok(boards(api()?))
 }
 
-/// Replaces control characters in a string the device supplied.
-///
-/// A serial number is whatever the USB descriptor says, and it ends up on the
-/// terminal. Without this, a device could put an ANSI escape sequence in its
-/// serial number and control what the terminal does with the rest of the line.
-fn sanitize(text: &str) -> String {
-    text.chars()
-        .map(|c| if c.is_control() { '?' } else { c })
-        .collect()
-}
-
 fn boards(api: &HidApi) -> Vec<String> {
     let mut serials: Vec<String> = Vec::new();
     for dev in api.device_list() {
@@ -167,18 +157,6 @@ fn boards(api: &HidApi) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_serial_number_from_the_device_cannot_carry_terminal_escapes() {
-        // What a hostile device could put into its USB descriptor.
-        assert_eq!(sanitize("YK\x1b[2JEVIL"), "YK?[2JEVIL");
-        assert_eq!(sanitize("YK\r\n\x07"), "YK???");
-        assert_eq!(sanitize("YK\u{9b}31m"), "YK?31m");
-
-        // An ordinary serial number is left alone.
-        assert_eq!(sanitize("Y3N13808"), "Y3N13808");
-        assert_eq!(sanitize("<unknown>"), "<unknown>");
-    }
 
     #[test]
     fn payload_is_padded_to_a_full_report() {

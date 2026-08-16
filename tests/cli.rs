@@ -83,6 +83,33 @@ fn an_unknown_serial_number_fails_without_a_usage_message() {
 }
 
 #[test]
+fn an_argument_that_is_not_unicode_is_a_usage_error_not_a_crash() {
+    use std::ffi::OsStr;
+    use std::os::unix::ffi::OsStrExt;
+
+    // A byte sequence no String can hold. `env::args()` would panic on it;
+    // the lossy conversion turns it into an ordinary unknown option.
+    let output = Command::new(env!("CARGO_BIN_EXE_ykush3cmd"))
+        .arg(OsStr::from_bytes(b"-\xff"))
+        .output()
+        .expect("the binary should run");
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stderr(&output).contains("Unknown option"));
+    assert!(!stderr(&output).contains("panicked"));
+}
+
+#[test]
+fn control_characters_in_an_argument_are_not_echoed_to_the_terminal() {
+    // An unknown option is echoed in the error message. A caller must not be
+    // able to smuggle an ANSI escape sequence onto stderr through it.
+    let output = run(&["-\x1b[31mboo"]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(stderr(&output).contains("Unknown option -?[31mboo"));
+}
+
+#[test]
 fn the_board_name_prefix_of_the_cpp_application_is_accepted() {
     let output = run(&["ykush3", "-h"]);
 

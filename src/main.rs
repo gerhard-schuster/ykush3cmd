@@ -13,6 +13,7 @@ mod cli;
 mod device;
 mod error;
 mod help;
+mod sanitize;
 mod ykush3;
 
 #[cfg(test)]
@@ -28,11 +29,19 @@ use error::{Error, Result};
 use ykush3::Ykush3;
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().collect();
+    // Not `env::args()`: that panics on an argument that is not valid Unicode,
+    // where a lossy conversion turns it into a readable usage error. Sanitizing
+    // right here keeps control characters a caller put into argv from reaching
+    // the terminal when an error message echoes the argument, the same filter
+    // the device serial numbers go through. An empty argv, which `execve`
+    // permits, must not panic either.
+    let args: Vec<String> = std::env::args_os()
+        .map(|arg| sanitize::sanitize(&arg.to_string_lossy()))
+        .collect();
     let program = program_name(&args);
     let mut out = io::stdout().lock();
 
-    match run(&program, &args[1..], &mut out) {
+    match run(&program, args.get(1..).unwrap_or_default(), &mut out) {
         Ok(()) => ExitCode::SUCCESS,
         Err(Error::Usage(msg)) => {
             let _ = writeln!(io::stderr(), "{msg}\n");
