@@ -25,6 +25,18 @@ cargo build --release
 
 The result is a single binary, `target/release/ykush3cmd`.
 
+With a Rust toolchain (1.74 or newer) installed, building and installing is one step,
+no clone needed:
+
+```
+cargo install --locked --tag v0.2.0 --git https://github.com/gerhard-schuster/ykush3cmd
+```
+
+This puts `ykush3cmd` into `~/.cargo/bin`. The `--locked` matters: without it, cargo
+resolves the dependencies afresh instead of taking the versions pinned in `Cargo.lock` —
+the ones the tests and the dependency audit actually ran against. The tag picks the
+release; leave it off to build the tip of `master`.
+
 **For macOS on Apple silicon.** That is where it was written, built and run, and the source
 refuses to compile anywhere else rather than produce a binary nobody has tried.
 
