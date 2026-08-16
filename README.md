@@ -344,7 +344,7 @@ exercised without one:
 | Condition | Lines | When measured |
 |---|---|---|
 | no board attached | 95.99 % | 2026-08-16, this state, reproducible by anyone |
-| board attached | 98.48 % | 2026-08-16, board `Y3N13808` on firmware 1.5.0, before the answer-correlation pass |
+| board attached | 98.59 % | 2026-08-16, this state, board `Y3N13808` on firmware 1.5.0 |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
 misses two lines without a board. The 57 lines missing without a board are mostly in
@@ -388,14 +388,14 @@ Against a YKUSH3 with serial number `Y3N13808`, firmware 1.5.0, bootloader 1.2.0
 running on Apple silicon. Nothing was attached to the downstream ports.
 
 The answer checking added after the first run of this record was validated against the same
-board on 2026-08-16, still on firmware 1.5.0: all seven hardware tests of that state pass,
-including the one that pins the ACK the board sets on a switching command. Two checks added
-afterwards — the echoed GPIO pin and the external port status — have their own ignored
-tests and await the next attached board.
+board on 2026-08-16, still on firmware 1.5.0, in two rounds: first the ACK the board sets
+on a switching command, then the answer-to-request correlation — the echoed GPIO pin and
+the external port nibble. All nine hardware tests pass; the firmware really does echo what
+the stricter checks require.
 
 | Area | What was run | Result |
 |---|---|---|
-| Test suite | `cargo test -- --ignored --test-threads=1` | 7 hardware tests pass |
+| Test suite | `cargo test -- --ignored --test-threads=1` | 9 hardware tests pass |
 | Enumeration | `-l`, `-s <serial>`, an unknown serial | correct, unknown serial exits 1 |
 | Versions | firmware, bootloader | 1.5.0 / 1.2.0 |
 | Port switching | `-d`/`-u` singly and with `a`, each read back with `-g` | correct |
