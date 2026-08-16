@@ -180,15 +180,18 @@ impl<T: Transport> Ykush3<T> {
             ));
         }
 
-        let resp = self.request_acked(&[op::PORT_STATUS | port.code()?])?;
+        let requested = port.code()?;
+        let resp = self.request_acked(&[op::PORT_STATUS | requested])?;
 
         // The answer carries the port number in the low nibble and the
-        // switching state in the high nibble.
+        // switching state in the high nibble. The number must be the port
+        // that was asked about — otherwise a valid-looking answer could
+        // describe a different physical port.
         let state = resp[1];
         let number = state & 0x0f;
-        if number == 0 || number > 4 {
+        if number != requested {
             return Err(Error::Device(format!(
-                "Unexpected port state answer: 0x{state:02x}"
+                "The answer describes port {number}, not port {requested} (0x{state:02x})"
             )));
         }
 
@@ -199,15 +202,29 @@ impl<T: Transport> Ykush3<T> {
     }
 
     /// Reads the level of a GPIO pin.
+    ///
+    /// The level is returned as the raw byte the board reports. The firmware
+    /// has only ever been seen to send 0 or 1, but that is an observation,
+    /// not a documented guarantee, so nothing is rejected here.
     pub fn read_io(&self, gpio: u8) -> Result<u8> {
+        let gpio = gpio_code(gpio)?;
         let resp = self.request(&[op::IO_READ, gpio])?;
         expect_ack(&resp, op::IO_READ)?;
+
+        // The answer echoes the pin; a level belonging to a different pin
+        // must not be reported as the one that was asked for.
+        if resp[2] != gpio {
+            return Err(Error::Device(format!(
+                "The answer refers to GPIO {}, not GPIO {gpio}",
+                resp[2]
+            )));
+        }
         Ok(resp[3])
     }
 
     /// Drives a GPIO pin high or low.
     pub fn write_io(&self, gpio: u8, high: bool) -> Result<()> {
-        self.request_acked(&[op::IO_WRITE, gpio, u8::from(high)])?;
+        self.request_acked(&[op::IO_WRITE, gpio_code(gpio)?, u8::from(high)])?;
         Ok(())
     }
 
@@ -292,8 +309,16 @@ impl<T: Transport> Ykush3<T> {
         expect_i2c_ack(&resp)?;
 
         // The board reports how many bytes it actually got from the slave.
-        let read = usize::from(resp[2]).min(I2C_MAX_BYTES);
-        Ok(resp[3..3 + read].to_vec())
+        // Fewer than requested is a legitimate short read; more would mean
+        // the answer belongs to some other exchange and is rejected instead
+        // of being clamped into shape.
+        let reported = usize::from(resp[2]);
+        if reported > usize::from(len) {
+            return Err(Error::Device(format!(
+                "The board reported {reported} bytes for a request of {len}"
+            )));
+        }
+        Ok(resp[3..3 + reported].to_vec())
     }
 
     /// Firmware version of the board.
@@ -309,10 +334,16 @@ impl<T: Transport> Ykush3<T> {
     fn version(&self, kind: u8, legacy: Version) -> Result<Version> {
         let resp = self.request(&[op::VERSION, kind])?;
 
-        // Boards too old to know the version command leave the answer empty.
-        if resp[0] != op::ACK && resp[0] != op::VERSION {
+        // Boards too old to know the version command leave the answer empty —
+        // and only that exact shape maps to the legacy constant. Everything
+        // else that is not a proper version answer is an error: reporting a
+        // made-up "1.0.0" for a garbled reply would turn a communication
+        // problem into an authoritative-looking version. The C++ application
+        // is more lenient here on both counts; that lenience is not copied.
+        if resp.iter().all(|&b| b == 0) {
             return Ok(legacy);
         }
+        expect_ack(&resp, op::VERSION)?;
 
         Ok(Version {
             major: resp[2],
@@ -333,10 +364,15 @@ impl<T: Transport> Ykush3<T> {
 
     /// Sends a command and returns the answer, requiring the ACK status byte.
     ///
-    /// For the port and GPIO commands the C++ application never looks at the
-    /// answer, so a rejected command passes as a success there. The board does
-    /// set the status byte, which is checked here; what follows it differs by
-    /// command and is left to the caller.
+    /// This is the validation floor, not the policy. The policy is: every
+    /// command checks exactly the answer shape that is documented or has been
+    /// observed on hardware — a dedicated decoder where the answer carries
+    /// data (port status, GPIO reads, versions, I2C), the echoed opcode where
+    /// the board echoes one, and only the status byte where nothing more is
+    /// known. The switching and configuration commands are in that last
+    /// group: their answers beyond the status byte are undocumented, and
+    /// guessing structure that has never been seen on a board would reject
+    /// working hardware.
     fn request_acked(&self, payload: &[u8]) -> Result<Report> {
         let resp = self.request(payload)?;
         if resp[0] != op::ACK {
@@ -352,6 +388,20 @@ impl<T: Transport> Ykush3<T> {
     fn notify(&self, payload: &[u8]) -> Result<()> {
         self.transport.send(&report(payload))
     }
+}
+
+/// GPIO pin number as sent on the wire, `1` to `3`.
+///
+/// Validated here and not only in the command line, because the library can
+/// be called with any `u8` — and an unchecked pin number would go straight
+/// into a report.
+fn gpio_code(gpio: u8) -> Result<u8> {
+    if (1..=3).contains(&gpio) {
+        return Ok(gpio);
+    }
+    Err(Error::Usage(format!(
+        "There is no GPIO {gpio}, the board has 1 to 3"
+    )))
 }
 
 fn expect_ack(resp: &Report, opcode: u8) -> Result<()> {
@@ -462,18 +512,27 @@ mod tests {
 
     #[test]
     fn port_status_decodes_the_state_nibble() {
-        for (answer, expected) in [
-            (0x11, PortStatus { port: 1, on: true }),
-            (0x02, PortStatus { port: 2, on: false }),
-            (0x13, PortStatus { port: 3, on: true }),
+        for (answer, port, expected) in [
+            (0x11, Port::Downstream(1), PortStatus { port: 1, on: true }),
+            (0x02, Port::Downstream(2), PortStatus { port: 2, on: false }),
+            (0x13, Port::Downstream(3), PortStatus { port: 3, on: true }),
             // The C++ application does not decode the external port at all.
-            (0x14, PortStatus { port: 4, on: true }),
-            (0x04, PortStatus { port: 4, on: false }),
+            (0x14, Port::External, PortStatus { port: 4, on: true }),
+            (0x04, Port::External, PortStatus { port: 4, on: false }),
         ] {
-            let (result, _) = exchange(&[0x01, answer], |b| b.port_status(Port::Downstream(1)), 1);
+            let (result, _) = exchange(&[0x01, answer], |b| b.port_status(port), 1);
 
             assert_eq!(result.unwrap(), expected, "answer 0x{answer:02x}");
         }
+    }
+
+    #[test]
+    fn port_status_rejects_the_answer_for_a_different_port() {
+        // Port 2 answers although port 1 was asked. Decoded as-is, a caller
+        // would take the state of the wrong physical port for the truth.
+        let (result, _) = exchange(&[0x01, 0x12], |b| b.port_status(Port::Downstream(1)), 1);
+
+        assert!(matches!(result, Err(Error::Device(_))));
     }
 
     #[test]
@@ -553,6 +612,33 @@ mod tests {
 
         assert!(matches!(no_ack, Err(Error::Device(_))));
         assert!(matches!(wrong_echo, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn a_gpio_read_answered_for_a_different_pin_is_an_error() {
+        // The answer carries the level of pin 3 although pin 2 was asked.
+        let (result, _) = exchange(&[0x01, 0x30, 0x03, 0x01], |b| b.read_io(2), 2);
+
+        assert!(matches!(result, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn an_out_of_range_gpio_number_is_rejected_before_anything_is_sent() {
+        // The command line only offers 1 to 3; a library caller can pass
+        // anything and must be stopped before it reaches a report.
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        for gpio in [0, 4, 255] {
+            assert!(
+                matches!(board.read_io(gpio), Err(Error::Usage(_))),
+                "read_io({gpio})"
+            );
+            assert!(
+                matches!(board.write_io(gpio, true), Err(Error::Usage(_))),
+                "write_io({gpio})"
+            );
+        }
+        assert_eq!(board.transport.sent_count(), 0, "nothing must be sent");
     }
 
     #[test]
@@ -736,6 +822,26 @@ mod tests {
     }
 
     #[test]
+    fn an_i2c_read_reporting_more_than_requested_is_an_error() {
+        // The board claims 20 bytes for a request of 3. Clamping would hide
+        // that the answer belongs to some other exchange.
+        let mut answer = vec![0x01, 0x52, 20];
+        answer.extend_from_slice(&[0xee; 20]);
+
+        let (result, _) = exchange(&answer, |b| b.i2c_read(0x20, 3), 4);
+
+        assert!(matches!(result, Err(Error::Device(_))));
+    }
+
+    #[test]
+    fn an_i2c_read_may_return_fewer_bytes_than_requested() {
+        // A short read is legitimate: the slave had less to give.
+        let (result, _) = exchange(&[0x01, 0x52, 0x02, 0xde, 0xad], |b| b.i2c_read(0x20, 3), 4);
+
+        assert_eq!(result.unwrap(), vec![0xde, 0xad]);
+    }
+
+    #[test]
     fn an_i2c_transfer_names_the_reason_it_failed() {
         // The status byte values are the ones the board answers with; 0x02 was
         // observed on firmware 1.5.0 with master mode switched off.
@@ -769,13 +875,26 @@ mod tests {
     }
 
     #[test]
-    fn an_unanswered_version_falls_back_to_the_legacy_version() {
-        // Old boards do not know the command and leave the answer empty.
+    fn an_empty_version_answer_falls_back_to_the_legacy_version() {
+        // Old boards do not know the command and leave the answer empty —
+        // the all-zero report is the only shape that maps to the fallback.
         let (firmware, _) = exchange(&[0x00], |b| b.firmware_version(), 2);
         let (boot, _) = exchange(&[0x00], |b| b.bootloader_version(), 2);
 
         assert_eq!(firmware.unwrap(), LEGACY_FIRMWARE);
         assert_eq!(boot.unwrap(), LEGACY_BOOTLOADER);
+    }
+
+    #[test]
+    fn a_garbled_version_answer_is_an_error_not_a_legacy_version() {
+        // Anything that is neither the empty legacy shape nor a proper
+        // version answer must not be reported as "1.0.0": that would turn a
+        // communication problem into an authoritative-looking version.
+        let (unknown_status, _) = exchange(&[0x02, 0x61, 9, 9, 9], |b| b.firmware_version(), 2);
+        let (wrong_echo, _) = exchange(&[0x01, 0x51, 1, 2, 3], |b| b.firmware_version(), 2);
+
+        assert!(matches!(unknown_status, Err(Error::Device(_))));
+        assert!(matches!(wrong_echo, Err(Error::Device(_))));
     }
 
     // -- transport errors -------------------------------------------------
@@ -793,6 +912,27 @@ mod tests {
     /// Run with `cargo test -- --ignored --test-threads=1`.
     mod hardware {
         use super::*;
+
+        /// Checks that the firmware echoes the pin the way `read_io()` now
+        /// requires. Reading a pin changes nothing on the board.
+        #[test]
+        #[ignore = "needs a YKUSH3 attached"]
+        fn a_gpio_read_is_answered_for_the_requested_pin() {
+            let board = Ykush3::open(None).expect("the first board should open");
+
+            board.read_io(1).expect("the answer should name pin 1");
+        }
+
+        /// Checks that the status of the external port really comes back with
+        /// nibble four, which the correlation in `port_status()` requires.
+        #[test]
+        #[ignore = "needs a YKUSH3 attached"]
+        fn the_external_port_status_is_answered_with_nibble_four() {
+            let board = Ykush3::open(None).expect("the first board should open");
+
+            let status = board.port_status(Port::External).expect("status");
+            assert_eq!(status.port, 4);
+        }
 
         /// Checks that the firmware really sets the ACK byte on a switching
         /// command, which `request_acked` relies on. The port is set to the

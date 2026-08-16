@@ -4,6 +4,19 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- The board's answers are held to the shape of the request. A port status
+  must describe the port that was asked about and a GPIO read the pin that
+  was asked about; a version answer is either the exact empty shape of a
+  legacy board or a properly acknowledged version — a garbled answer is an
+  error rather than a made-up `1.0.0`; an I2C read claiming more bytes than
+  requested is rejected instead of clamped. Each of these was taken at face
+  value before, as the C++ application does.
+- GPIO numbers are validated in the library, not only in the command line.
+
 ## 0.2.0 — 2026-08-16
 
 Hardening after a security audit, and a library underneath the command line.
