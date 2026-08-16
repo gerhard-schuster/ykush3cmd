@@ -65,6 +65,12 @@ character as the serial number is read in. The filter sits at the system boundar
 string is taken from the device, rather than at the point of printing. The finding above
 describes the state at the time of the review.
 
+The transport was changed afterwards as well: the dependency named above, `hidapi 2.6.6`
+with its vendored C library, was replaced by `async-hid`, which reaches IOKit from Rust. No
+third party C is compiled any more. The categories examined above are unaffected — the
+trust boundary to the device is the same 64 byte report either way — but the sentence about
+the dependency describes the state at the time of the review, not the state today.
+
 ## Scope
 
 A snapshot of the commit named above. Changes made to the code afterwards are not covered.

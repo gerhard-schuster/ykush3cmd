@@ -1,6 +1,6 @@
 [package]
 name = "ykush3cmd"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 rust-version = "1.74"
 license = "Apache-2.0"
@@ -21,7 +21,11 @@ name = "ykush3"
 fake = []
 
 [dependencies]
-hidapi = "2"
+async-hid = "0.5"
+# block_on and the stream adapter for enumeration; async-io only for the timer
+# the read races against, since async-hid has no timed read.
+async-io = "2"
+futures-lite = "2"
 
 [dev-dependencies]
 # This package's own tests — the binary's included — use FakeBoard, which

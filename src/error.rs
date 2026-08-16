@@ -12,11 +12,10 @@ pub enum Error {
     /// No board (or no board with the requested serial number) is attached.
     NotFound { serial: Option<String> },
     /// The HID stack refused the operation. Carries the message rather than
-    /// the hidapi error type, which would otherwise become part of this
-    /// library's public interface and tie it to the hidapi major version.
+    /// the error type of the HID library, which would otherwise become part of
+    /// this library's public interface and tie it to that library's major
+    /// version.
     Hid(String),
-    /// The HID stack could not be initialised at all.
-    HidInit(String),
     /// The board did not answer within the read timeout.
     NoResponse,
     /// The board answered, but reported a failure or an unexpected report.
@@ -34,7 +33,6 @@ impl fmt::Display for Error {
             }
             Error::NotFound { serial: None } => write!(f, "No YKUSH3 board found"),
             Error::Hid(e) => write!(f, "USB HID error: {e}"),
-            Error::HidInit(msg) => write!(f, "Cannot use the USB HID stack: {msg}"),
             Error::NoResponse => write!(f, "No response from the board"),
             Error::Device(msg) => write!(f, "{msg}"),
             Error::Io(e) => write!(f, "Output error: {e}"),
@@ -53,8 +51,8 @@ impl std::error::Error for Error {
     }
 }
 
-impl From<hidapi::HidError> for Error {
-    fn from(e: hidapi::HidError) -> Self {
+impl From<async_hid::HidError> for Error {
+    fn from(e: async_hid::HidError) -> Self {
         Error::Hid(e.to_string())
     }
 }
@@ -69,10 +67,8 @@ impl From<std::io::Error> for Error {
 mod tests {
     use super::*;
 
-    fn hid_error() -> hidapi::HidError {
-        hidapi::HidError::HidApiError {
-            message: "boom".into(),
-        }
+    fn hid_error() -> async_hid::HidError {
+        async_hid::HidError::Message("boom".into())
     }
 
     fn io_error() -> std::io::Error {
@@ -96,10 +92,6 @@ mod tests {
                 "the board said no",
             ),
             (Error::Hid("boom".into()), "USB HID error"),
-            (
-                Error::HidInit("no permission".into()),
-                "Cannot use the USB HID stack",
-            ),
             (Error::Io(io_error()), "Output error"),
         ];
 

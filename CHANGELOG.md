@@ -4,6 +4,34 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 — 2026-08-17
+
+The HID transport moves from `hidapi`, which carries a C library and compiles
+it, to `async-hid`, which reaches IOKit from Rust. Building needs a Rust
+toolchain and nothing else — no C compiler, no Xcode command line tools. The
+behaviour of the program is unchanged; the nine hardware tests were run against
+a board before and after.
+
+### Changed
+
+- The transport is `async-hid`. The library is asynchronous because that is how
+  macOS delivers HID reports; the `Transport` trait and everything above it stay
+  synchronous, so the change is confined to `device.rs`.
+- The read timeout of five seconds is now built by racing the read against a
+  timer, since the new library offers no timed read. A read that loses the race
+  leaves the device usable.
+- No leading report id byte is prepended any more. The new library takes the
+  bare 64 byte report, which suits a board that uses unnumbered reports.
+
+### Removed
+
+- `Error::HidInit` — it reported a failure of the C library's global
+  initialisation, which no longer exists. Library callers matching on it have to
+  drop the arm; the variant can never be constructed.
+- `LICENSE-hidapi-bsd.txt` and the licensing apparatus around it. Nothing links
+  a third party C library any more, so nothing has to accompany a binary release
+  beyond the Apache license and the notices.
+
 ## 0.3.0 — 2026-08-16
 
 The protocol layer now holds every answer to the shape of the request it

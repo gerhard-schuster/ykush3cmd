@@ -29,7 +29,7 @@ With a Rust toolchain (1.74 or newer) installed, building and installing is one 
 no clone needed:
 
 ```
-cargo install --locked --tag v0.3.0 --git https://github.com/gerhard-schuster/ykush3cmd
+cargo install --locked --tag v0.4.0 --git https://github.com/gerhard-schuster/ykush3cmd
 ```
 
 This puts `ykush3cmd` into `~/.cargo/bin`. The `--locked` matters: without it, cargo
@@ -40,9 +40,9 @@ release; leave it off to build the tip of `master`.
 **For macOS on Apple silicon.** That is where it was written, built and run, and the source
 refuses to compile anywhere else rather than produce a binary nobody has tried.
 
-The only dependency is the `hidapi` crate. It carries the HID library as C source and
-reaches the device by way of IOKit, so nothing else has to be installed and no library
-travels alongside the binary.
+The HID access goes through the `async-hid` crate, which reaches IOKit from Rust. No C is
+compiled and no library travels alongside the binary, so a Rust toolchain is the whole
+requirement — no C compiler, no Xcode command line tools.
 
 Reaching the device needs no special permission — the system hands it to any process that
 asks. See [SECURITY-REVIEW.md](SECURITY-REVIEW.md) for what that means.
@@ -262,7 +262,7 @@ The layers are separated so that each one can be exercised without hardware:
 ```
 arguments ──cli::parse──> Invocation{serial, Command} ──execute──> Ykush3<T: Transport>
                                                                         │
-                                                        Board (hidapi) ─┴─ FakeBoard (test)
+                                                     Board (async-hid) ─┴─ FakeBoard (test)
 ```
 
 `Ykush3<T>` is generic over the transport and `Ykush3::open()` gives the variant backed by a
@@ -343,11 +343,11 @@ exercised without one:
 
 | Condition | Lines | When measured |
 |---|---|---|
-| no board attached | 96.22 % | 2026-08-16, this state, reproducible by anyone |
-| board attached | 98.59 % | 2026-08-16, this state, board `Y3N13808` on firmware 1.5.0 |
+| no board attached | 96.64 % | 2026-08-17, this state, reproducible by anyone |
+| board attached | 98.77 % | 2026-08-17, this state, board `Y3N13808` on firmware 1.5.0 |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
-misses four lines. The 59 lines missing without a board are mostly in `device.rs`: opening
+misses four lines. Of the 52 lines missing without a board, 40 are in `device.rs`: opening
 the device, and the transfer and send paths behind it. A few of the rest are the failure
 messages of assertions that a passing test never reaches.
 
@@ -357,9 +357,8 @@ branches can run on any given day:
 
 | Place | Why it cannot be reached |
 |---|---|
-| `device.rs` — `Error::HidInit` | only fires when the operating system's `hid_init()` fails |
-| `device.rs` — `Error::NoResponse` | would need a device that returns a zero length report |
-| `device.rs` — truncated read, truncated write | would need a device that delivers or takes only part of a report |
+| `device.rs` — `Error::NoResponse` | would need a device that goes quiet for five seconds |
+| `device.rs` — truncated read | would need a device that delivers only part of a report |
 | `main.rs` — `unreachable!()` | help, version and listing are handled before a board is opened, so the branch is dead by construction |
 
 Reaching 100 % would take contortions. Turning a documented invariant panic into an error
@@ -557,7 +556,6 @@ The choice of the Apache license is therefore freely made rather than inherited.
 in [`NOTICE`](NOTICE) is there voluntarily, because the protocol would not exist without
 Yepkit's work. Yepkit has neither endorsed nor reviewed this and does not support it.
 
-HIDAPI, which is linked in statically, is used under its **BSD license** rather than the GPL
-it also offers — text in [`LICENSE-hidapi-bsd.txt`](LICENSE-hidapi-bsd.txt). That file has
-to accompany a binary release. The remaining components are listed in
-[`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).
+No third party C library is vendored or linked, so nothing has to accompany a binary
+release beyond this. Every crate in the binary is under MIT or Apache-2.0 terms and listed
+in [`THIRD-PARTY-NOTICES.md`](THIRD-PARTY-NOTICES.md).

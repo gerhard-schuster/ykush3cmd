@@ -1,40 +1,53 @@
 # Third party notices
 
-The crates that go into the binary, at the versions pinned in `Cargo.lock`.
-Crates that the lockfile carries for other targets are left out, since they are
-never built here.
+The crates that go into the binary. Versions are not repeated here — they are
+pinned in `Cargo.lock`, which is where they stay correct. Crates that the
+lockfile carries for other targets are left out, since they are never built
+here.
+
+No C library is vendored or linked. The HID access goes through Apple's IOKit
+framework, reached from Rust.
 
 ## Linked into the binary
 
-| Component | Version | License |
-|---|---|---|
-| [hidapi](https://crates.io/crates/hidapi) (Rust bindings) | 2.6.6 | MIT |
-| [HIDAPI](https://github.com/libusb/hidapi) (bundled C library) | as vendored by the crate | BSD-Style, see `LICENSE-hidapi-bsd.txt` |
-| [libc](https://crates.io/crates/libc) | 0.2.189 | MIT OR Apache-2.0, used here under Apache-2.0 |
-| [cfg-if](https://crates.io/crates/cfg-if) | 1.0.4 | MIT OR Apache-2.0, used here under Apache-2.0 |
+Under **MIT**:
 
-HIDAPI offers a choice of three licenses: the GNU General Public License
-version 3, a BSD-Style License, or the original HIDAPI license. **The BSD-Style
-License is the one chosen here**; the GPL is expressly not used. Its terms
-require the copyright notice, the list of conditions and the disclaimer to
-accompany a binary distribution, which is why `LICENSE-hidapi-bsd.txt` is part
-of this repository and must be shipped with any binary release.
+    async-hid   block2   objc2   objc2-encode   slab
+
+Under **MIT or Apache-2.0**, used here under Apache-2.0:
+
+    async-io          atomic-waker      bitflags       cfg-if
+    concurrent-queue  crossbeam-queue   crossbeam-utils errno
+    fastrand          futures-core      futures-io     futures-lite
+    libc              log               parking        pin-project-lite
+    polling           static_assertions
+
+Under **Zlib, Apache-2.0 or MIT**, used here under Apache-2.0:
+
+    dispatch2   objc2-core-foundation   objc2-io-kit
+
+Under **Apache-2.0 with LLVM exception, Apache-2.0 or MIT**, used here under
+Apache-2.0:
+
+    rustix
 
 ## Build time only
 
-These run during the build and leave no code in the resulting binary:
+Runs during the build and leaves no code in the resulting binary:
 
-| Component | Version | License |
-|---|---|---|
-| [cc](https://crates.io/crates/cc) | 1.4.2 | MIT OR Apache-2.0 |
-| [find-msvc-tools](https://crates.io/crates/find-msvc-tools) | 0.1.10 | MIT OR Apache-2.0 |
-| [pkg-config](https://crates.io/crates/pkg-config) | 0.3.33 | MIT OR Apache-2.0 |
-| [shlex](https://crates.io/crates/shlex) | 2.0.1 | MIT OR Apache-2.0 |
+    autocfg     (MIT or Apache-2.0)
+
+## Other targets
+
+Building for Linux or Windows pulls a different set — `nix` there, the
+`windows` crates here. Among them `unicode-ident` is published as
+`(MIT OR Apache-2.0) AND Unicode-3.0`, which is why `deny.toml` allows the
+Unicode license as well. None of it is built on macOS.
 
 ## MIT License
 
-Applies to the `hidapi` crate. The dual licensed crates above are used under
-Apache-2.0, whose text is in `LICENSE`.
+Applies to the crates listed under MIT above. The dual licensed ones are used
+under Apache-2.0, whose text is in `LICENSE`.
 
 ```
 Permission is hereby granted, free of charge, to any person obtaining a copy of
@@ -56,9 +69,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-To regenerate this list after a dependency change — the build-time crates are
-part of it, which `--edges normal` alone would not show:
+To regenerate this list after a dependency change:
 
 ```
-cargo tree --edges normal,build --prefix none
+cargo tree --edges normal,build --target aarch64-apple-darwin --prefix none
+cargo metadata --format-version 1 --filter-platform aarch64-apple-darwin
 ```

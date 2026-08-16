@@ -50,15 +50,8 @@ The full and current list of deliberate behavioural differences is the table
 Third party components
 ----------------------
 
-HIDAPI is statically linked into the resulting binary. HIDAPI may be used under
-one of three licenses; the license chosen here is the BSD-Style License, whose
-full text is in the file LICENSE-hidapi-bsd.txt:
+No third party C library is vendored or linked. The program reaches the device
+through Apple's IOKit framework, from Rust.
 
-    Copyright (c) 2010, Alan Ott, Signal 11 Software
-    All rights reserved.
-    https://github.com/libusb/hidapi
-
-The GNU General Public License, which HIDAPI also offers, is expressly not the
-license used here.
-
-Further components and their licenses are listed in THIRD-PARTY-NOTICES.md.
+Every crate that goes into the binary is under MIT or Apache-2.0 terms; they
+are listed with their licenses in THIRD-PARTY-NOTICES.md.

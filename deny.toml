@@ -8,19 +8,21 @@
 yanked = "deny"
 
 [licenses]
-# Exactly the two licenses that appear in the tree today. Anything else is meant
-# to fail, so that a new dependency under different terms gets looked at rather
+# Exactly the licenses that appear in the tree today. Anything else is meant to
+# fail, so that a new dependency under different terms gets looked at rather
 # than waved through.
 allow = [
     "Apache-2.0",
     "MIT",
+    # Required rather than chosen: unicode-ident is published as
+    # "(MIT OR Apache-2.0) AND Unicode-3.0", so the third one cannot be
+    # avoided by picking a branch. It reaches the graph through the proc
+    # macros of the windows crates, which this target never builds — the
+    # check spans every target, which is the right default for a program
+    # meant to grow beyond one.
+    "Unicode-3.0",
 ]
 confidence-threshold = 0.93
-
-# A note this check cannot make itself: the hidapi crate is MIT, but it carries
-# the HIDAPI C library, which offers a choice of GPL-3.0, a BSD-Style license or
-# its own original one. The BSD one is the choice made here — see NOTICE. Only
-# the crate license is visible to cargo-deny.
 
 [bans]
 # Two versions of the same crate in one binary is a smell worth seeing.

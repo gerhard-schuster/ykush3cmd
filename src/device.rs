@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 //! USB HID transport for the YKUSH3 board.
 //!
-//! Talks to the board through hidapi, which reaches the device by way of IOKit.
+//! Talks to the board through async-hid, which reaches the device by way of
+//! IOKit. That library is asynchronous because that is how the operating
+//! system delivers HID reports — it hands out callbacks on a run loop rather
+//! than a blocking read. This program is not asynchronous and has no reason to
+//! be, so the awaits are resolved here and everything above the [`Transport`]
+//! trait stays as synchronous as it was.
 
-use std::sync::OnceLock;
+use std::cell::RefCell;
+use std::time::Duration;
 
-use hidapi::{HidApi, HidDevice};
+use async_hid::{AsyncHidRead, AsyncHidWrite, Device, DeviceReaderWriter, HidBackend};
+use futures_lite::{future, StreamExt};
 
 use crate::error::{Error, Result};
 use crate::sanitize::sanitize;
@@ -18,7 +25,7 @@ pub const PRODUCT_ID: u16 = 0xF11B;
 /// Every YKUSH3 report is a fixed size block.
 pub const REPORT_SIZE: usize = 64;
 
-const READ_TIMEOUT_MS: i32 = 5000;
+const READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 pub type Report = [u8; REPORT_SIZE];
 
@@ -48,51 +55,38 @@ pub(crate) fn report(payload: &[u8]) -> Report {
     buf
 }
 
-/// The process-wide HID stack.
-///
-/// Creating a `HidApi` runs `hid_init()` and dropping it runs `hid_exit()`,
-/// both of which mutate global state in the C library. Initialising once and
-/// never tearing it down keeps that state stable — on macOS a second
-/// initialisation from a different thread aborts the process.
-fn api() -> Result<&'static HidApi> {
-    static API: OnceLock<std::result::Result<HidApi, String>> = OnceLock::new();
-
-    match API.get_or_init(|| HidApi::new().map_err(|e| e.to_string())) {
-        Ok(api) => Ok(api),
-        Err(message) => Err(Error::HidInit(message.clone())),
-    }
-}
-
 /// An opened YKUSH3 board.
 pub struct Board {
-    dev: HidDevice,
+    /// Every exchange needs the handle mutably while [`Transport`] hands out a
+    /// shared reference. A cell bridges the two, which costs nothing here: a
+    /// board is driven from one thread at a time, and the operating system
+    /// hands out a HID device exclusively anyway.
+    dev: RefCell<DeviceReaderWriter>,
 }
 
 impl Board {
     /// Opens the board with the given serial number, or the first board in the
     /// enumeration order when no serial number is provided.
     pub fn open(serial: Option<&str>) -> Result<Self> {
-        let api = api()?;
+        future::block_on(async {
+            // Probing the device list first turns "nothing attached" into a
+            // clear message instead of a generic open failure.
+            let attached = attached_boards().await?;
+            let chosen = match serial {
+                Some(wanted) => attached.into_iter().find(|(known, _)| known == wanted),
+                None => attached.into_iter().next(),
+            };
 
-        // Probing the device list first turns "nothing attached" into a clear
-        // message instead of a generic hidapi open failure.
-        let attached = boards(api);
-        let present = match serial {
-            Some(s) => attached.iter().any(|b| b == s),
-            None => !attached.is_empty(),
-        };
-        if !present {
-            return Err(Error::NotFound {
-                serial: serial.map(str::to_owned),
-            });
-        }
+            let Some((_, device)) = chosen else {
+                return Err(Error::NotFound {
+                    serial: serial.map(str::to_owned),
+                });
+            };
 
-        let dev = match serial {
-            Some(s) => api.open_serial(VENDOR_ID, PRODUCT_ID, s)?,
-            None => api.open(VENDOR_ID, PRODUCT_ID)?,
-        };
-
-        Ok(Board { dev })
+            Ok(Board {
+                dev: RefCell::new(device.open().await?),
+            })
+        })
     }
 }
 
@@ -101,61 +95,77 @@ impl Transport for Board {
         self.send(out)?;
 
         let mut resp: Report = [0; REPORT_SIZE];
-        let read = self.dev.read_timeout(&mut resp, READ_TIMEOUT_MS)?;
-        if read == 0 {
-            return Err(Error::NoResponse);
-        }
-        // The board always answers with a full report. Anything shorter would
-        // leave the zero padding of the buffer to be read as answer bytes, so
-        // it is rejected rather than interpreted.
-        if read != REPORT_SIZE {
-            return Err(Error::Device(format!(
-                "Truncated answer from the board: {read} of {REPORT_SIZE} bytes"
-            )));
-        }
+        let mut dev = self.dev.borrow_mut();
 
-        Ok(resp)
+        // The library has no timed read, so the read races a timer: a board
+        // that says nothing must not hang the program. Dropping the losing
+        // read leaves the handle usable — the next command goes through as if
+        // nothing had happened.
+        let read = future::block_on(future::or(
+            async { Some(dev.read_input_report(&mut resp).await) },
+            async {
+                async_io::Timer::after(READ_TIMEOUT).await;
+                None
+            },
+        ));
+        drop(dev);
+
+        match read {
+            None => Err(Error::NoResponse),
+            Some(Err(e)) => Err(e.into()),
+            // The board always answers with a full report. Anything shorter
+            // would leave the zero padding of the buffer to be read as answer
+            // bytes, so it is rejected rather than interpreted.
+            Some(Ok(read)) if read != REPORT_SIZE => Err(Error::Device(format!(
+                "Truncated answer from the board: {read} of {REPORT_SIZE} bytes"
+            ))),
+            Some(Ok(_)) => Ok(resp),
+        }
     }
 
     fn send(&self, out: &Report) -> Result<()> {
-        // hidapi expects the report id in the first byte. The board uses
-        // unnumbered reports, so a leading zero is prepended.
+        // The report goes out as it stands. Unlike hidapi, this library takes
+        // the bare report and prepends no report id of its own, which suits a
+        // board that uses unnumbered reports.
         //
-        // Unlike the read above, the write has no timeout: hidapi offers no
-        // timed variant, so a device that stalls its endpoint blocks here for
-        // as long as the operating system lets it.
-        let mut buf = [0u8; REPORT_SIZE + 1];
-        buf[1..].copy_from_slice(out);
-        let written = self.dev.write(&buf)?;
-        if written != buf.len() {
-            return Err(Error::Device(format!(
-                "Truncated write to the board: {written} of {} bytes",
-                buf.len()
-            )));
-        }
+        // There is no timeout here. The library offers none for writing, so a
+        // device that stalls its endpoint blocks for as long as the operating
+        // system lets it.
+        let mut dev = self.dev.borrow_mut();
+        future::block_on(dev.write_output_report(out))?;
         Ok(())
     }
 }
 
 /// Serial numbers of all attached YKUSH3 boards, in enumeration order.
 pub fn list() -> Result<Vec<String>> {
-    Ok(boards(api()?))
+    future::block_on(async {
+        let attached = attached_boards().await?;
+        Ok(attached.into_iter().map(|(serial, _)| serial).collect())
+    })
 }
 
-fn boards(api: &HidApi) -> Vec<String> {
-    let mut serials: Vec<String> = Vec::new();
-    for dev in api.device_list() {
-        if dev.vendor_id() != VENDOR_ID || dev.product_id() != PRODUCT_ID {
+/// Every attached board, as its sanitised serial number and the handle it was
+/// found under, in enumeration order.
+async fn attached_boards() -> Result<Vec<(String, Device)>> {
+    let mut found: Vec<(String, Device)> = Vec::new();
+
+    // The stream borrows the backend, so the backend has to outlive it.
+    let backend = HidBackend::default();
+    let mut devices = backend.enumerate().await?;
+    while let Some(dev) = devices.next().await {
+        if dev.vendor_id != VENDOR_ID || dev.product_id != PRODUCT_ID {
             continue;
         }
-        let serial = sanitize(dev.serial_number().unwrap_or("<unknown>"));
+        let serial = sanitize(dev.serial_number.as_deref().unwrap_or("<unknown>"));
         // A board can expose several HID interfaces and would then show up
         // more than once in the device list.
-        if !serials.contains(&serial) {
-            serials.push(serial);
+        if !found.iter().any(|(known, _)| *known == serial) {
+            found.push((serial, dev));
         }
     }
-    serials
+
+    Ok(found)
 }
 
 #[cfg(test)]
