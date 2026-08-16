@@ -6,6 +6,13 @@ Notable changes, newest first. The format follows
 
 ## Unreleased
 
+### Added
+
+- A library target `ykush3` underneath the command line application, so the
+  board can be scripted from Rust directly. The `FakeBoard` test double ships
+  as part of it, so code built on the library can be tested without hardware,
+  the same way this repository tests itself.
+
 ### Changed
 
 - Narrowed to macOS on Apple silicon, which is where this was written, built and

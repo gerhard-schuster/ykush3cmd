@@ -228,14 +228,20 @@ v1.2.1 or in the online reference, yet both work — see
 
 ## How the port is put together
 
-| File | Contents |
-|---|---|
-| `src/main.rs` | entry point, running a `Command`, output |
-| `src/cli.rs` | argument splitting, value checking, the `Command` enum |
-| `src/device.rs` | the `Transport` trait and `Board`, its HID implementation |
-| `src/ykush3.rs` | the protocol: opcodes, reports, reading the answers |
-| `src/fake.rs` | test double for the transport, `cfg(test)` only |
-| `src/help.rs` | help text |
+The package builds two targets: the `ykush3` **library**, which holds everything that
+touches the board, and the `ykush3cmd` **binary**, a command line front end on top of it.
+
+| File | Target | Contents |
+|---|---|---|
+| `src/lib.rs` | library | the public surface, everything re-exported at the root |
+| `src/device.rs` | library | the `Transport` trait and `Board`, its HID implementation |
+| `src/ykush3.rs` | library | the protocol: opcodes, reports, reading the answers |
+| `src/fake.rs` | library | `FakeBoard`, the test double for the transport |
+| `src/sanitize.rs` | library | the control character filter for text from outside |
+| `src/error.rs` | library | the error type all layers share |
+| `src/main.rs` | binary | entry point, running a `Command`, output |
+| `src/cli.rs` | binary | argument splitting, value checking, the `Command` enum |
+| `src/help.rs` | binary | help text |
 
 The layers are separated so that each one can be exercised without hardware:
 
@@ -248,10 +254,37 @@ arguments ──cli::parse──> Invocation{serial, Command} ──execute─�
 `Ykush3<T>` is generic over the transport and `Ykush3::open()` gives the variant backed by a
 real HID device. `execute()` writes into an `impl Write`, so the output can be checked too.
 
+### Scripting the board from Rust
+
+A Rust program can depend on the library and skip the command line entirely:
+
+```rust
+use ykush3::{Port, Ykush3};
+
+let board = Ykush3::open(None)?;            // or Some("Y3N13808")
+board.port_down(Port::Downstream(2))?;
+println!("{}", board.port_status(Port::Downstream(2))?);
+```
+
+`FakeBoard` is part of the library on purpose, so code built on it can be tested the same
+way this repository tests itself — against a prepared answer instead of a board:
+
+```rust
+use ykush3::{fake::FakeBoard, Port, Ykush3};
+
+let board = Ykush3::with_transport(FakeBoard::answering(&[0x01]));
+board.port_up(Port::Downstream(1))?;
+assert_eq!(board.transport().sent_count(), 1);
+```
+
+The library is not on crates.io and makes no stability promise yet; it moves with the
+command line application.
+
 ## Tests
 
 ```
-cargo test                                    # 87 tests, no hardware needed
+cargo test                                    # 87 tests and a doctest, no
+                                              # hardware needed
 cargo test -- --ignored --test-threads=1      # 7 more: 5 need a board, 2 only
                                               # the HID stack of the system
 ```
@@ -267,11 +300,12 @@ down with it — SIGTRAP on macOS.
 | Group | Tests | Subject |
 |---|---|---|
 | `cli` | 27 | grammar, board selection, every command, every error message |
-| `ykush3` | 30 | the bytes each command sends, reading answers, error paths |
+| `ykush3` | 31 | the bytes each command sends, reading answers, error paths |
 | `main` | 13 | output format, dispatch of every command, program name |
-| `error`, `help`, `fake`, `device`, `sanitize` | 8 | error texts, help output, test doubles, report padding, the control character filter |
+| `error`, `help`, `device`, `sanitize` | 7 | error texts, help output, report padding, the control character filter |
 | `tests/cli.rs` | 9 | the built binary: exit codes, stdout versus stderr |
-| **running without hardware** | **87** | |
+| doctest | 1 | the library example compiles; `no_run`, since it needs a board |
+| **running without hardware** | **87 + 1** | |
 | `--ignored`, needs a board | 5 | opening with and without a serial number, real exchanges, an acknowledged switch |
 | `--ignored`, needs only the HID stack | 2 | enumeration when nothing is attached |
 
@@ -288,11 +322,11 @@ exercised without one:
 
 | Condition | Lines | When measured |
 |---|---|---|
-| no board attached | 95.66 % | 2026-08-16, this state, reproducible by anyone |
+| no board attached | 95.76 % | 2026-08-16, this state, reproducible by anyone |
 | board attached | 99.29 % | 2026-08-15, before the formatting, macOS-only and hardening commits |
 
 `cli.rs`, `error.rs`, `fake.rs` and `sanitize.rs` are at 100 % either way; `ykush3.rs`
-misses a single line without a board. The 57 lines missing without a board are mostly in
+misses a single line without a board. The 56 lines missing without a board are mostly in
 `device.rs`: opening the device, and the transfer and send paths behind it.
 
 With a board attached, the measurement above left three lines, and the hardening added two
@@ -313,15 +347,18 @@ Reproducing the measurement, with Homebrew LLVM and without `cargo-llvm-cov`:
 
 ```
 export RUSTFLAGS="-C instrument-coverage" LLVM_PROFILE_FILE="/tmp/yk/%p-%m.profraw"
-cargo test && cargo test -- --ignored --test-threads=1
+cargo test && cargo test --no-fail-fast -- --ignored --test-threads=1
 llvm-profdata merge -sparse /tmp/yk/*.profraw -o /tmp/yk/yk.profdata
-llvm-cov report -object target/debug/deps/<unittest-bin> \
+llvm-cov report -object target/debug/deps/<lib-unittest-bin> \
+                -object target/debug/deps/<bin-unittest-bin> \
                 -object target/debug/deps/<cli-testbin> \
                 -object target/debug/ykush3cmd \
                 -instr-profile=/tmp/yk/yk.profdata
 ```
 
-The built binary has to be the third object, otherwise `main()` is missing from the figures.
+`--no-fail-fast` matters without a board: the library's hardware tests fail first, and
+without the flag cargo would stop before the binary's HID stack test has run. The built
+binary has to be the last object, otherwise `main()` is missing from the figures.
 
 ## Checked against the hardware
 

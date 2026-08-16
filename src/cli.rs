@@ -9,8 +9,7 @@
 //! Parsing produces an [`Invocation`] and touches no hardware, so the whole
 //! command line surface can be tested on its own.
 
-use crate::error::{Error, Result};
-use crate::ykush3::{Port, PowerOnState};
+use ykush3::{Error, Port, PowerOnState, Result};
 
 /// What the user asked the application to do.
 #[derive(Debug, PartialEq, Eq)]

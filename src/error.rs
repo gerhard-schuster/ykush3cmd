@@ -11,8 +11,10 @@ pub enum Error {
     Usage(String),
     /// No board (or no board with the requested serial number) is attached.
     NotFound { serial: Option<String> },
-    /// The HID stack refused the operation.
-    Hid(hidapi::HidError),
+    /// The HID stack refused the operation. Carries the message rather than
+    /// the hidapi error type, which would otherwise become part of this
+    /// library's public interface and tie it to the hidapi major version.
+    Hid(String),
     /// The HID stack could not be initialised at all.
     HidInit(String),
     /// The board did not answer within the read timeout.
@@ -44,7 +46,7 @@ impl std::error::Error for Error {}
 
 impl From<hidapi::HidError> for Error {
     fn from(e: hidapi::HidError) -> Self {
-        Error::Hid(e)
+        Error::Hid(e.to_string())
     }
 }
 
@@ -84,7 +86,7 @@ mod tests {
                 Error::Device("the board said no".into()),
                 "the board said no",
             ),
-            (Error::Hid(hid_error()), "USB HID error"),
+            (Error::Hid("boom".into()), "USB HID error"),
             (
                 Error::HidInit("no permission".into()),
                 "Cannot use the USB HID stack",

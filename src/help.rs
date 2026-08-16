@@ -3,7 +3,7 @@
 
 use std::io::Write;
 
-use crate::error::Result;
+use ykush3::Result;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
@@ -82,8 +82,23 @@ pub fn print_all(out: &mut impl Write, program: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::Error;
-    use crate::fake::FailingWriter;
+    use ykush3::Error;
+
+    /// A writer whose every write fails, to exercise the output error paths.
+    struct FailingWriter;
+
+    impl Write for FailingWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(
+                std::io::ErrorKind::BrokenPipe,
+                "writer closed",
+            ))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn the_help_names_the_version_the_usage_and_the_options() {
@@ -117,5 +132,8 @@ mod tests {
             print_all(&mut FailingWriter, "ykush3cmd"),
             Err(Error::Io(_))
         ));
+
+        // Only the writes fail; a flush goes through.
+        assert!(FailingWriter.flush().is_ok());
     }
 }

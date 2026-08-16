@@ -9,6 +9,11 @@ readme = "README.md"
 keywords = ["usb", "hub", "hid", "ykush", "yepkit"]
 categories = ["command-line-utilities", "hardware-support"]
 
+# The library is the product; the ykush3cmd binary is a front end to it. Its
+# name drops the "cmd", which would be wrong in a use path.
+[lib]
+name = "ykush3"
+
 [dependencies]
 hidapi = "2"
 

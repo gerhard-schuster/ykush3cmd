@@ -2,7 +2,9 @@
 //! Test double for the HID transport.
 //!
 //! Records what a command sends to the board and answers from a prepared queue,
-//! so the protocol layer can be exercised without hardware.
+//! so the protocol layer — and any code built on this library — can be
+//! exercised without hardware. The inspection methods panic on misuse, which is
+//! the right behaviour for a test helper: the panic message is the diagnosis.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;
@@ -57,22 +59,6 @@ impl FakeBoard {
     }
 }
 
-/// A writer whose every write fails, to exercise the output error paths.
-pub struct FailingWriter;
-
-impl std::io::Write for FailingWriter {
-    fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
-        Err(std::io::Error::new(
-            std::io::ErrorKind::BrokenPipe,
-            "writer closed",
-        ))
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
-}
-
 impl Transport for FakeBoard {
     fn transfer(&self, out: &Report) -> Result<Report> {
         self.send(out)?;
@@ -86,17 +72,5 @@ impl Transport for FakeBoard {
     fn send(&self, out: &Report) -> Result<()> {
         self.sent.borrow_mut().push(*out);
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::io::Write;
-
-    #[test]
-    fn the_failing_writer_fails_on_write_but_not_on_flush() {
-        assert!(FailingWriter.write(b"x").is_err());
-        assert!(FailingWriter.flush().is_ok());
     }
 }

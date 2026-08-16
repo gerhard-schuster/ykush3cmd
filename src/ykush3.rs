@@ -25,17 +25,19 @@ pub enum Port {
 
 impl Port {
     /// Port number as used in the low nibble of the port opcodes.
-    fn code(self) -> u8 {
+    ///
+    /// A number outside 1 to 3 is rejected rather than masked: unchecked it
+    /// would bleed into the opcode — 0x42 would turn a switching command into
+    /// BOOTLOADER — and masked it would silently address a different port.
+    /// The command line never produces such a value, but a library caller can.
+    fn code(self) -> Result<u8> {
         match self {
-            // The mask keeps a stray value out of the opcode nibble, where
-            // 0x42 would turn a switching command into BOOTLOADER and 0x45
-            // into RESET. The command line only ever produces 1 to 3.
-            Port::Downstream(n) => {
-                debug_assert!((1..=3).contains(&n), "downstream port out of range: {n}");
-                n & 0x0f
-            }
-            Port::External => 0x4,
-            Port::All => 0xa,
+            Port::Downstream(n) if (1..=3).contains(&n) => Ok(n),
+            Port::Downstream(n) => Err(Error::Usage(format!(
+                "There is no downstream port {n}, the board has 1 to 3"
+            ))),
+            Port::External => Ok(0x4),
+            Port::All => Ok(0xa),
         }
     }
 }
@@ -153,21 +155,20 @@ impl<T: Transport> Ykush3<T> {
         Ykush3 { transport }
     }
 
-    /// The transport underneath, so tests can inspect what was sent.
-    #[cfg(test)]
+    /// The transport underneath, so a test can inspect what was sent.
     pub fn transport(&self) -> &T {
         &self.transport
     }
 
     /// Powers a port up.
     pub fn port_up(&self, port: Port) -> Result<()> {
-        self.request_acked(&[op::PORT_UP | port.code()])?;
+        self.request_acked(&[op::PORT_UP | port.code()?])?;
         Ok(())
     }
 
     /// Powers a port down.
     pub fn port_down(&self, port: Port) -> Result<()> {
-        self.request_acked(&[op::PORT_DOWN | port.code()])?;
+        self.request_acked(&[op::PORT_DOWN | port.code()?])?;
         Ok(())
     }
 
@@ -179,7 +180,7 @@ impl<T: Transport> Ykush3<T> {
             ));
         }
 
-        let resp = self.request_acked(&[op::PORT_STATUS | port.code()])?;
+        let resp = self.request_acked(&[op::PORT_STATUS | port.code()?])?;
 
         // The answer carries the port number in the low nibble and the
         // switching state in the high nibble.
@@ -225,7 +226,7 @@ impl<T: Transport> Ykush3<T> {
             ));
         }
 
-        self.request_acked(&[op::PORT_CONFIG, port.code(), state.code()])?;
+        self.request_acked(&[op::PORT_CONFIG, port.code()?, state.code()])?;
         Ok(())
     }
 
@@ -514,6 +515,26 @@ mod tests {
         for (name, result) in rejected {
             assert!(matches!(result, Err(Error::Device(_))), "{name}");
         }
+    }
+
+    #[test]
+    fn an_out_of_range_port_number_is_rejected_before_anything_is_sent() {
+        // The command line cannot produce these; a library caller can. Masked
+        // or passed through, 18 would address port 2 and 0x45 would reset the
+        // board.
+        let board = Ykush3::with_transport(FakeBoard::mute());
+
+        for n in [0, 4, 18, 0x45] {
+            assert!(
+                matches!(board.port_up(Port::Downstream(n)), Err(Error::Usage(_))),
+                "port_up({n})"
+            );
+            assert!(
+                matches!(board.port_status(Port::Downstream(n)), Err(Error::Usage(_))),
+                "port_status({n})"
+            );
+        }
+        assert_eq!(board.transport.sent_count(), 0, "nothing must be sent");
     }
 
     #[test]

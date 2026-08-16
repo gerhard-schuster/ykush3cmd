@@ -1,32 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
-//! Control application for the Yepkit YKUSH3 switchable USB hub.
+//! Command line front end for the Yepkit YKUSH3 switchable USB hub.
 //!
-//! Rust port of the YKUSH3 part of the Yepkit `ykushcmd` application.
-
-// This program is written for macOS on Apple silicon, and has only ever been
-// built and run there. Anywhere else it refuses to compile rather than produce
-// a binary nobody has tried.
-#[cfg(not(all(target_os = "macos", target_arch = "aarch64")))]
-compile_error!("ykush3cmd is for macOS on Apple silicon");
+//! The board handling itself lives in the `ykush3` library target of this
+//! package; what remains here is parsing the command line and printing.
 
 mod cli;
-mod device;
-mod error;
 mod help;
-mod sanitize;
-mod ykush3;
-
-#[cfg(test)]
-mod fake;
 
 use std::io::{self, Write};
 use std::path::Path;
 use std::process::ExitCode;
 
 use cli::Command;
-use device::Transport;
-use error::{Error, Result};
-use ykush3::Ykush3;
+use ykush3::{Error, Result, Transport, Ykush3};
 
 fn main() -> ExitCode {
     // Not `env::args()`: that panics on an argument that is not valid Unicode,
@@ -36,7 +22,7 @@ fn main() -> ExitCode {
     // the device serial numbers go through. An empty argv, which `execve`
     // permits, must not panic either.
     let args: Vec<String> = std::env::args_os()
-        .map(|arg| sanitize::sanitize(&arg.to_string_lossy()))
+        .map(|arg| ykush3::sanitize(&arg.to_string_lossy()))
         .collect();
     let program = program_name(&args);
     let mut out = io::stdout().lock();
@@ -66,7 +52,7 @@ fn run(program: &str, args: &[String], out: &mut impl Write) -> Result<()> {
         // Commands that do not address a single board.
         Command::Help => help::print_all(out, program),
         Command::Version => help::print_version(out),
-        Command::List => print_boards(out, &device::list()?),
+        Command::List => print_boards(out, &ykush3::list()?),
 
         command => {
             let board = Ykush3::open(invocation.serial.as_deref())?;
@@ -140,8 +126,8 @@ fn program_name(args: &[String]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fake::FakeBoard;
-    use crate::ykush3::Port;
+    use ykush3::fake::FakeBoard;
+    use ykush3::Port;
 
     /// Runs a command against a board answering with `answer` and returns what
     /// was printed.
@@ -257,7 +243,7 @@ mod tests {
 
     #[test]
     fn every_command_that_addresses_the_board_is_dispatched() {
-        use crate::ykush3::PowerOnState;
+        use ykush3::PowerOnState;
 
         let answered: Vec<(Vec<u8>, Command)> = vec![
             (vec![0x01], Command::PortUp(Port::All)),
