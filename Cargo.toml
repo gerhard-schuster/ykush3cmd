@@ -14,8 +14,20 @@ categories = ["command-line-utilities", "hardware-support"]
 [lib]
 name = "ykush3"
 
+[features]
+# The FakeBoard test double, so code built on the library can be tested
+# without hardware. Off by default: the plain library ships no test gear and
+# no panicking paths.
+fake = []
+
 [dependencies]
 hidapi = "2"
+
+[dev-dependencies]
+# This package's own tests — the binary's included — use FakeBoard, which
+# sits behind the feature. A dev-dependency of the package on itself is how
+# the feature gets turned on for the tests and for nothing else.
+ykush3cmd = { path = ".", features = ["fake"] }
 
 [profile.release]
 opt-level = "s"

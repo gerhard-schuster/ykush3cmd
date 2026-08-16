@@ -5,6 +5,9 @@
 //! so the protocol layer — and any code built on this library — can be
 //! exercised without hardware. The inspection methods panic on misuse, which is
 //! the right behaviour for a test helper: the panic message is the diagnosis.
+//!
+//! Sits behind the `fake` feature, precisely because of those panics: a build
+//! that does not ask for the test double gets a library without one.
 
 use std::cell::RefCell;
 use std::collections::VecDeque;

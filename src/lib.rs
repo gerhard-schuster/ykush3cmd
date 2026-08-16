@@ -16,9 +16,10 @@
 //! # }
 //! ```
 //!
-//! Code built on this library can be tested without hardware: [`fake::FakeBoard`]
-//! stands in for a board, answers from a prepared queue and records what would
-//! have been sent.
+//! Code built on this library can be tested without hardware: behind the
+//! `fake` feature, `fake::FakeBoard` stands in for a board, answers from a
+//! prepared queue and records what would have been sent. The feature is off
+//! by default, so the plain library carries no test gear.
 
 // This library is written for macOS on Apple silicon, and has only ever been
 // built and run there. Anywhere else it refuses to compile rather than produce
@@ -31,6 +32,7 @@ mod error;
 mod sanitize;
 mod ykush3;
 
+#[cfg(any(test, feature = "fake"))]
 pub mod fake;
 
 pub use crate::device::{

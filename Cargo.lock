@@ -75,4 +75,5 @@ name = "ykush3cmd"
 version = "0.1.0"
 dependencies = [
  "hidapi",
+ "ykush3cmd",
 ]

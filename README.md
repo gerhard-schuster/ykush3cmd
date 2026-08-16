@@ -236,7 +236,7 @@ touches the board, and the `ykush3cmd` **binary**, a command line front end on t
 | `src/lib.rs` | library | the public surface, everything re-exported at the root |
 | `src/device.rs` | library | the `Transport` trait and `Board`, its HID implementation |
 | `src/ykush3.rs` | library | the protocol: opcodes, reports, reading the answers |
-| `src/fake.rs` | library | `FakeBoard`, the test double for the transport |
+| `src/fake.rs` | library | `FakeBoard`, the test double for the transport, behind the `fake` feature |
 | `src/sanitize.rs` | library | the control character filter for text from outside |
 | `src/error.rs` | library | the error type all layers share |
 | `src/main.rs` | binary | entry point, running a `Command`, output |
@@ -266,8 +266,15 @@ board.port_down(Port::Downstream(2))?;
 println!("{}", board.port_status(Port::Downstream(2))?);
 ```
 
-`FakeBoard` is part of the library on purpose, so code built on it can be tested the same
-way this repository tests itself — against a prepared answer instead of a board:
+`FakeBoard` ships with the library, so code built on it can be tested the same way this
+repository tests itself — against a prepared answer instead of a board. It sits behind the
+`fake` feature, because its inspection methods panic on misuse as test helpers should; a
+build that does not ask for the double gets a library without test gear:
+
+```toml
+[dev-dependencies]
+ykush3cmd = { path = "../ykush3-rs", features = ["fake"] }
+```
 
 ```rust
 use ykush3::{fake::FakeBoard, Port, Ykush3};

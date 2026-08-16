@@ -10,8 +10,10 @@ Notable changes, newest first. The format follows
 
 - A library target `ykush3` underneath the command line application, so the
   board can be scripted from Rust directly. The `FakeBoard` test double ships
-  as part of it, so code built on the library can be tested without hardware,
-  the same way this repository tests itself.
+  with it behind the `fake` feature: code built on the library can be tested
+  without hardware, the same way this repository tests itself, while a build
+  that does not ask for the double gets a library without test gear or
+  panicking paths.
 
 ### Changed
 
