@@ -282,10 +282,16 @@ println!("{}", board.port_status(Port::Downstream(2))?);
 
 **Open the board once and keep it.** A rig that opens per operation still works, but every
 open costs about 17 kB that the process does not give back, measured over 25 000 openings
-in ten minutes. It is not this library: hidapi grows by the same amount per open, so the
-cost sits in the operating system rather than above it. With one handle held instead,
-88 000 exchanges over three minutes left the process flat at 8 MB. Opening is also the
-slow part of an exchange, so holding the handle is faster as well.
+in ten minutes. With one handle held instead, 88 000 exchanges over three minutes left the
+process flat at 8 MB. Opening is also the slow part of an exchange, so holding the handle
+is faster as well.
+
+The 17 kB are not a leak and not this library's doing. `leaks` reports nothing lost, and
+`heap` says why: after 2 000 openings the process holds 4 000 `NSMutableData` objects of
+8 256 bytes each, plus one `CFString` per open, all of them owned by Foundation and Core
+Foundation. That is two report sized buffers per open which IOKit keeps rather than
+releases on close. hidapi grows by the same amount per open, because the cost sits below
+both of them, where neither can reach it.
 
 `FakeBoard` ships with the library, so code built on it can be tested the same way this
 repository tests itself, against a prepared answer instead of a board. It sits behind the
