@@ -280,8 +280,15 @@ board.port_down(Port::Downstream(2))?;
 println!("{}", board.port_status(Port::Downstream(2))?);
 ```
 
+**Open the board once and keep it.** A rig that opens per operation still works, but every
+open costs about 17 kB that the process does not give back, measured over 25 000 openings
+in ten minutes. It is not this library: hidapi grows by the same amount per open, so the
+cost sits in the operating system rather than above it. With one handle held instead,
+88 000 exchanges over three minutes left the process flat at 8 MB. Opening is also the
+slow part of an exchange, so holding the handle is faster as well.
+
 `FakeBoard` ships with the library, so code built on it can be tested the same way this
-repository tests itself — against a prepared answer instead of a board. It sits behind the
+repository tests itself, against a prepared answer instead of a board. It sits behind the
 `fake` feature, because its inspection methods panic on misuse as test helpers should; a
 build that does not ask for the double gets a library without test gear:
 
