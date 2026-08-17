@@ -9,6 +9,7 @@
 //! trait stays as synchronous as it was.
 
 use std::cell::RefCell;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 use async_hid::{AsyncHidRead, AsyncHidWrite, Device, DeviceReaderWriter, HidBackend};
@@ -154,8 +155,11 @@ pub fn list() -> Result<Vec<String>> {
 async fn attached_boards() -> Result<Vec<(String, Device)>> {
     let mut found: Vec<(String, Device)> = Vec::new();
 
-    // The stream borrows the backend, so the backend has to outlive it.
-    let backend = HidBackend::default();
+    // One backend for the process. It is a handle rather than a resource, but
+    // making it once keeps the enumeration from building it again per call.
+    static BACKEND: OnceLock<HidBackend> = OnceLock::new();
+    let backend = BACKEND.get_or_init(HidBackend::default);
+
     let mut devices = backend.enumerate().await?;
     while let Some(dev) = devices.next().await {
         if dev.vendor_id != VENDOR_ID || dev.product_id != PRODUCT_ID {
