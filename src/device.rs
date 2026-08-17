@@ -124,15 +124,19 @@ impl Transport for Board {
     }
 
     fn send(&self, out: &Report) -> Result<()> {
-        // The report goes out as it stands. Unlike hidapi, this library takes
-        // the bare report and prepends no report id of its own, which suits a
-        // board that uses unnumbered reports.
+        // The first byte is the report id, which the library strips when it is
+        // zero. The board uses unnumbered reports, so a leading zero is what it
+        // wants: passing the bare report instead would send it under whatever
+        // its first byte happens to be.
         //
         // There is no timeout here. The library offers none for writing, so a
         // device that stalls its endpoint blocks for as long as the operating
         // system lets it.
+        let mut buf = [0u8; REPORT_SIZE + 1];
+        buf[1..].copy_from_slice(out);
+
         let mut dev = self.dev.borrow_mut();
-        future::block_on(dev.write_output_report(out))?;
+        future::block_on(dev.write_output_report(&buf))?;
         Ok(())
     }
 }

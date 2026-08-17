@@ -36,3 +36,10 @@ ykush3cmd = { path = ".", features = ["fake"] }
 [profile.release]
 opt-level = "s"
 strip = true
+
+# Until sidit77/async-hid#45 is released, the transport uses the fixed copy
+# next to this repository. Upstream stops delivering input reports after a
+# few hundred writes on a handle that stays open, which is exactly how a test
+# rig drives a board. Drop this section once a release carries the fix.
+[patch.crates-io]
+async-hid = { path = "../async-hid" }
