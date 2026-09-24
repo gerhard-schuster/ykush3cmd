@@ -31,11 +31,11 @@ cargo build --release
 
 The result is a single binary, `target/release/ykush3cmd`.
 
-With a Rust toolchain (1.85 or newer) installed, building and installing is one step,
+With a Rust toolchain (1.86 or newer) installed, building and installing is one step,
 no clone needed:
 
 ```
-cargo install --locked --tag v0.4.0 --git https://github.com/gerhard-schuster/ykush3cmd
+cargo install --locked --tag v0.4.1 --git https://github.com/gerhard-schuster/ykush3cmd
 ```
 
 This puts `ykush3cmd` into `~/.cargo/bin`. The `--locked` matters: without it, cargo

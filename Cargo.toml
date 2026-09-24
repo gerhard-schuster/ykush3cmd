@@ -1,8 +1,8 @@
 [package]
 name = "ykush3cmd"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
-rust-version = "1.85"
+rust-version = "1.86"
 license = "Apache-2.0"
 description = "Control application for the Yepkit YKUSH3 switchable USB hub"
 readme = "README.md"

@@ -4,6 +4,18 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.1 - 2026-09-24
+
+0.4.0 declares a minimum supported Rust it cannot be built with. The code is
+fine; the number was stale. This corrects it and changes nothing else.
+
+### Changed
+
+- The minimum supported Rust is 1.86, up from 1.74. Two things push it there,
+  both in the dependency and neither in this crate: `async-hid` is edition
+  2024, which no compiler before 1.85 accepts, and it calls `Once::wait`, which
+  is stable since 1.86. The figure moves back down if the dependency ever does.
+
 ## 0.4.0 - 2026-09-24
 
 The HID transport moves from `hidapi`, which carries a C library and compiles
@@ -26,9 +38,6 @@ repository builds on its own.
   leaves the device usable.
 - No leading report id byte is prepended any more. The new library takes the
   bare 64 byte report, which suits a board that uses unnumbered reports.
-- The minimum supported Rust is 1.85, up from 1.74. `async-hid` moved to
-  edition 2024, which no earlier compiler accepts. Nothing in this crate needs
-  it; the floor comes from the dependency.
 - The documentation now states where the protocol came from. It was implemented
   from Yepkit's published USB control interface and I2C references and checked
   against a board, not taken from the source of the C++ `ykushcmd`; the README,
