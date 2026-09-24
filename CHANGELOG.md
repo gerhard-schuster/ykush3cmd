@@ -4,13 +4,17 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.4.0 - 2026-08-17
+## 0.4.0 - 2026-09-24
 
 The HID transport moves from `hidapi`, which carries a C library and compiles
 it, to `async-hid`, which reaches IOKit from Rust. Building needs a Rust
 toolchain and nothing else - no C compiler, no Xcode command line tools. The
-behaviour of the program is unchanged; the nine hardware tests were run against
-a board before and after.
+nine hardware tests were run against a board before and after the move.
+
+Two findings from the review of that new transport are fixed, the account of
+where the protocol came from is corrected, and the transport is pinned to a
+revision of the fork instead of a directory on one machine, so a clone of this
+repository builds on its own.
 
 ### Changed
 
