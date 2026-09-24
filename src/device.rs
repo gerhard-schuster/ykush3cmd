@@ -8,7 +8,7 @@
 //! be, so the awaits are resolved here and everything above the [`Transport`]
 //! trait stays as synchronous as it was.
 
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::OnceLock;
 use std::time::Duration;
 
@@ -27,6 +27,15 @@ pub const PRODUCT_ID: u16 = 0xF11B;
 pub const REPORT_SIZE: usize = 64;
 
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
+
+/// How long to wait for a late answer when emptying the queue after a read
+/// timed out. Long enough to catch one already on its way, short enough not to
+/// be felt on the next command.
+const DISCARD_WAIT: Duration = Duration::from_millis(50);
+
+/// Upper bound on the reports dropped in one go, so a board that streams cannot
+/// hold the program in the drain.
+const DISCARD_LIMIT: usize = 16;
 
 pub type Report = [u8; REPORT_SIZE];
 
@@ -63,6 +72,10 @@ pub struct Board {
     /// board is driven from one thread at a time, and the operating system
     /// hands out a HID device exclusively anyway.
     dev: RefCell<DeviceReaderWriter>,
+
+    /// Set when a read timed out. The answer may still arrive afterwards and
+    /// would then be queued, so the next exchange empties the queue first.
+    stale: Cell<bool>,
 }
 
 impl Board {
@@ -86,13 +99,49 @@ impl Board {
 
             Ok(Board {
                 dev: RefCell::new(device.open().await?),
+                stale: Cell::new(false),
             })
         })
+    }
+
+    /// Drops reports the board sent after a read had already given up on them.
+    ///
+    /// Bounded twice: by a short wait, so a board with nothing left to say
+    /// costs almost nothing, and by a count, so one that streams cannot keep
+    /// the program here. Errors are swallowed - the exchange that follows
+    /// raises them properly.
+    fn discard_queued(&self) {
+        let mut dev = self.dev.borrow_mut();
+        let mut scratch: Report = [0; REPORT_SIZE];
+
+        for _ in 0..DISCARD_LIMIT {
+            let got = future::block_on(future::or(
+                async { Some(dev.read_input_report(&mut scratch).await) },
+                async {
+                    async_io::Timer::after(DISCARD_WAIT).await;
+                    None
+                },
+            ));
+
+            if !matches!(got, Some(Ok(_))) {
+                break;
+            }
+        }
     }
 }
 
 impl Transport for Board {
     fn transfer(&self, out: &Report) -> Result<Report> {
+        // An answer to a read that timed out may arrive afterwards and wait in
+        // the queue of the transport. Taken for the answer to this command it
+        // would pass unnoticed: the switching and configuration commands carry
+        // nothing beyond the status byte to check it against. Emptying the
+        // queue first is what keeps one timeout from shifting every later
+        // answer by one.
+        if self.stale.replace(false) {
+            self.discard_queued();
+        }
+
         self.send(out)?;
 
         let mut resp: Report = [0; REPORT_SIZE];
@@ -112,7 +161,10 @@ impl Transport for Board {
         drop(dev);
 
         match read {
-            None => Err(Error::NoResponse),
+            None => {
+                self.stale.set(true);
+                Err(Error::NoResponse)
+            }
             Some(Err(e)) => Err(e.into()),
             // The board always answers with a full report. Anything shorter
             // would leave the zero padding of the buffer to be read as answer

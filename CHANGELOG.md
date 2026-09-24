@@ -23,6 +23,20 @@ a board before and after.
 - No leading report id byte is prepended any more. The new library takes the
   bare 64 byte report, which suits a board that uses unnumbered reports.
 
+### Security
+
+- An answer that arrives after a read has timed out is no longer read as the
+  answer to the next command. A timeout marks the board, and the next exchange
+  empties the queue of the transport before it sends. The drain is bounded by a
+  50 ms wait and by 16 reports. This was reachable only through the library: one
+  run of the command line program performs one exchange and exits.
+- `sanitize()` now replaces the bidirectional overrides and the zero width
+  characters as well as the control characters. They cannot drive a terminal,
+  but `U+202E` in a serial number reorders the line it is printed on and
+  `U+200B` prints as nothing, which together are enough to show one board's
+  serial number as another's. `U+FFFD` is still kept, so a lossy `argv`
+  conversion still shows where the bad byte was.
+
 ### Removed
 
 - `Error::HidInit` — it reported a failure of the C library's global
