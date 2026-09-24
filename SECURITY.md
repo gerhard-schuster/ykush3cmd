@@ -22,7 +22,7 @@ Out of scope, because they are properties of the hardware rather than of this
 program:
 
 - that any local process can open the device and switch ports or drop the board
-  into its bootloader — macOS grants HID devices to whoever asks first, and this
+  into its bootloader - macOS grants HID devices to whoever asks first, and this
   program neither adds nor could add a check there
 - firmware behaviour of the board itself, which belongs to Yepkit
 - denial of service by holding the device open; the operating system hands it out

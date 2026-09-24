@@ -4,11 +4,11 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.4.0 — 2026-08-17
+## 0.4.0 - 2026-08-17
 
 The HID transport moves from `hidapi`, which carries a C library and compiles
 it, to `async-hid`, which reaches IOKit from Rust. Building needs a Rust
-toolchain and nothing else — no C compiler, no Xcode command line tools. The
+toolchain and nothing else - no C compiler, no Xcode command line tools. The
 behaviour of the program is unchanged; the nine hardware tests were run against
 a board before and after.
 
@@ -58,14 +58,14 @@ a board before and after.
 
 ### Removed
 
-- `Error::HidInit` — it reported a failure of the C library's global
+- `Error::HidInit` - it reported a failure of the C library's global
   initialisation, which no longer exists. Library callers matching on it have to
   drop the arm; the variant can never be constructed.
 - `LICENSE-hidapi-bsd.txt` and the licensing apparatus around it. Nothing links
   a third party C library any more, so nothing has to accompany a binary release
   beyond the Apache license and the notices.
 
-## 0.3.0 — 2026-08-16
+## 0.3.0 - 2026-08-16
 
 The protocol layer now holds every answer to the shape of the request it
 belongs to, and the command line rejects what it used to skip silently. The
@@ -77,19 +77,19 @@ C++ application in one place.
 - The board's answers are held to the shape of the request. A port status
   must describe the port that was asked about and a GPIO read the pin that
   was asked about; a version answer is either the exact empty shape of a
-  legacy board or a properly acknowledged version — a garbled answer is an
+  legacy board or a properly acknowledged version - a garbled answer is an
   error rather than a made-up `1.0.0`; an I2C read claiming more bytes than
   requested is rejected instead of clamped. Each of these was taken at face
   value before, as the C++ application does.
 - GPIO numbers are validated in the library, not only in the command line.
-- Only the literal word `ykush3` is accepted as a leading board name — any
-  other free-standing first word is an error instead of being skipped — and
+- Only the literal word `ykush3` is accepted as a leading board name - any
+  other free-standing first word is an error instead of being skipped - and
   a second `-s` on one line is rejected instead of the first silently
   winning.
 - `report()` is no longer part of the library's public interface, and
   `Error::source()` hands out the underlying error of an output failure.
 
-## 0.2.0 — 2026-08-16
+## 0.2.0 - 2026-08-16
 
 Hardening after a security audit, and a library underneath the command line.
 Scripts that only look at the exit status get stricter behaviour on purpose:
@@ -118,7 +118,7 @@ a command the board rejects now exits with 1 instead of passing silently.
 - An answer report shorter than the fixed 64 bytes is rejected instead of
   having its missing bytes read as zeros.
 - An argument that is not valid Unicode ends in a usage error instead of a
-  crash, and an empty argument vector — which `execve` permits — shows the
+  crash, and an empty argument vector - which `execve` permits - shows the
   help instead of crashing.
 
 ### Security
@@ -131,7 +131,7 @@ a command the board rejects now exits with 1 instead of passing silently.
   tags, and pin the cargo-deny version so the audit tool no longer sits frozen
   in a stale cache.
 
-## 0.1.0 — 2026-08-15
+## 0.1.0 - 2026-08-15
 
 First release. A control program for the Yepkit YKUSH3, written in Rust against
 the USB protocol the vendor documents.

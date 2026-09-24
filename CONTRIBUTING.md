@@ -32,17 +32,17 @@ contribution has to make that visible:
 |---|---|
 | Apache 2.0, including the C++ original at `github.com/Yepkit/ykush` | keep the copyright notice, state the change, add the origin to `NOTICE` |
 | MIT, BSD, ISC | add the license text to `THIRD-PARTY-NOTICES.md` |
-| GPL, LGPL, AGPL | **do not send it** — incompatible with this project's license |
+| GPL, LGPL, AGPL | **do not send it** - incompatible with this project's license |
 | unclear | ask first rather than sending it and hoping |
 
 The same goes for dependencies: a new crate belongs in `THIRD-PARTY-NOTICES.md` together
 with its license. Dual licensed crates are used here under Apache-2.0.
 
 The case that comes up here in particular: the C++ original often sits in a neighbouring
-directory. It is under the same license, so taking from it is allowed — but not silently.
+directory. It is under the same license, so taking from it is allowed - but not silently.
 Text copied word for word needs the notice, otherwise the license statement of this
-repository stops being true. Protocol knowledge — opcodes, report layout, what answers mean
-— is not affected; those are facts.
+repository stops being true. Protocol knowledge - opcodes, report layout, what answers
+mean - is not affected; those are facts.
 
 ## Vendor documentation
 
@@ -69,7 +69,7 @@ cargo test -- --ignored --test-threads=1    # only with a board attached
 
 - **Code and commit messages in English.**
 - Commit messages carry **no trailers**. Subject line in the imperative, and below it a
-  paragraph explaining *why* — the *what* is in the diff.
+  paragraph explaining *why* - the *what* is in the diff.
 - Do not mix reformatting with substantive changes in one commit.
 
 ## Sending it

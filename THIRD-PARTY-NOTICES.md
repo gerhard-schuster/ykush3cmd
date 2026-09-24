@@ -1,6 +1,6 @@
 # Third party notices
 
-The crates that go into the binary. Versions are not repeated here — they are
+The crates that go into the binary. Versions are not repeated here - they are
 pinned in `Cargo.lock`, which is where they stay correct. Crates that the
 lockfile carries for other targets are left out, since they are never built
 here.
@@ -39,7 +39,7 @@ Runs during the build and leaves no code in the resulting binary:
 
 ## Other targets
 
-Building for Linux or Windows pulls a different set — `nix` there, the
+Building for Linux or Windows pulls a different set - `nix` there, the
 `windows` crates here. Among them `unicode-ident` is published as
 `(MIT OR Apache-2.0) AND Unicode-3.0`, which is why `deny.toml` allows the
 Unicode license as well. None of it is built on macOS.

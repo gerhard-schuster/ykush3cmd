@@ -17,7 +17,7 @@ allow = [
     # Required rather than chosen: unicode-ident is published as
     # "(MIT OR Apache-2.0) AND Unicode-3.0", so the third one cannot be
     # avoided by picking a branch. It reaches the graph through the proc
-    # macros of the windows crates, which this target never builds — the
+    # macros of the windows crates, which this target never builds - the
     # check spans every target, which is the right default for a program
     # meant to grow beyond one.
     "Unicode-3.0",

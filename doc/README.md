@@ -1,7 +1,7 @@
 # Vendor documentation
 
 The documents for this board are not kept in this repository. They belong to Yepkit and are
-under no free license, unlike the code here — redistributing them would be a separate
+under no free license, unlike the code here - redistributing them would be a separate
 question to ask them. What follows are the places to find them.
 
 The hardware and protocol figures in the [README](../README.md) rest on these sources,

@@ -2,7 +2,7 @@
 //! Test double for the HID transport.
 //!
 //! Records what a command sends to the board and answers from a prepared queue,
-//! so the protocol layer — and any code built on this library — can be
+//! so the protocol layer - and any code built on this library - can be
 //! exercised without hardware. The inspection methods panic on misuse, which is
 //! the right behaviour for a test helper: the panic message is the diagnosis.
 //!

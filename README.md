@@ -39,7 +39,7 @@ cargo install --locked --tag v0.4.0 --git https://github.com/gerhard-schuster/yk
 ```
 
 This puts `ykush3cmd` into `~/.cargo/bin`. The `--locked` matters: without it, cargo
-resolves the dependencies afresh instead of taking the versions pinned in `Cargo.lock` —
+resolves the dependencies afresh instead of taking the versions pinned in `Cargo.lock` -
 the ones the tests and the dependency audit actually ran against. The tag picks the
 release; leave it off to build the tip of `master`.
 
@@ -48,9 +48,9 @@ refuses to compile anywhere else rather than produce a binary nobody has tried.
 
 The HID access goes through the `async-hid` crate, which reaches IOKit from Rust. No C is
 compiled and no library travels alongside the binary, so a Rust toolchain is the whole
-requirement — no C compiler, no Xcode command line tools.
+requirement - no C compiler, no Xcode command line tools.
 
-Reaching the device needs no special permission — the system hands it to any process that
+Reaching the device needs no special permission - the system hands it to any process that
 asks. See [SECURITY-REVIEW-0.4.0.md](SECURITY-REVIEW-0.4.0.md) for what that means, and
 [SECURITY-REVIEW.md](SECURITY-REVIEW.md) for the earlier review of the `hidapi` transport.
 
@@ -60,8 +60,8 @@ Every push builds and tests on macOS, see
 ## Using it
 
 The **switches** are compatible with the original, and a leading `ykush3` is accepted and
-ignored so existing invocations keep working. What the original tolerated silently — a
-stray first word, a second `-s` — is an error here; the
+ignored so existing invocations keep working. What the original tolerated silently - a
+stray first word, a second `-s` - is an error here; the
 [differences table](#where-it-differs-from-the-c-original) has the full list:
 
 ```
@@ -69,7 +69,7 @@ ykush3cmd -u 1
 ykush3cmd ykush3 -u 1        # the same thing
 ```
 
-The **messages** deliberately are not compatible — they are worded independently, see
+The **messages** deliberately are not compatible - they are worded independently, see
 [License](#license). A script that picks apart the output of the original needs adapting;
 a script that only looks at the exit status does not.
 
@@ -95,7 +95,7 @@ a script that only looks at the exit status does not.
 | `--firmware-version` / `--bootloader-version` | print the versions |
 | `-v`, `--version` / `-h`, `--help` | version and help |
 
-Exit status: `0` on success, `1` on failure — board not found, invalid input, or the board
+Exit status: `0` on success, `1` on failure - board not found, invalid input, or the board
 rejecting the command.
 
 ```
@@ -144,9 +144,9 @@ fresh enumeration.
 
 | Item | Value |
 |---|---|
-| Connector | two pin breakout, 3.24 mm pitch, (+) is +5V, (−) is GND |
+| Connector | two pin breakout, 3.24 mm pitch, (+) is +5V, (-) is GND |
 | Max continuous current | 6 A |
-| On resistance | 10 mΩ |
+| On resistance | 10 mOhm |
 | Switch | the same type as on the downstream ports |
 
 No USB, power only. The output voltage sags with the load current in proportion to R_ON.
@@ -161,7 +161,7 @@ No USB, power only. The output voltage sags with the load current in proportion 
 | Input thresholds, TTL | low 0.50 V max, high 1.63 V min |
 | Input thresholds, Schmitt | low 0.6 V max, high 2.64 V min |
 | Max current per pin | 25 mA, sourcing and sinking |
-| Absolute limit per pin | −0.3 V to 3.6 V |
+| Absolute limit per pin | -0.3 V to 3.6 V |
 
 Two modes: as a **control interface**, where the pins become inputs and the like-numbered
 downstream port follows the level on the pin, or as a **GPIO/USB bridge**, where the host
@@ -174,13 +174,13 @@ after the next reset.
 |---|---|
 | Lines | SDA on pin SDI, SCL on pin SCK, pull-ups on the board |
 | Factory address of the board | 7 bit `0b1010011` = `0x53` |
-| Address format in the protocol | 7 bit address aligned to the top of the byte, LSB zero — the address shifted left by one |
+| Address format in the protocol | 7 bit address aligned to the top of the byte, LSB zero - the address shifted left by one |
 | Slave mode | the board becomes a control interface an outside master can switch |
 | Master mode | the board becomes a USB-to-I2C bridge |
 | Payload per transfer | 60 bytes at most |
 | Factory state | both modes off, and the setting is persistent |
 | `--i2c-master enable` | makes the board re-enumerate; unreachable for about a second |
-| `--i2c-master disable` | is acknowledged but often does not take — see [Checked against the hardware](#checked-against-the-hardware) |
+| `--i2c-master disable` | is acknowledged but often does not take - see [Checked against the hardware](#checked-against-the-hardware) |
 | Missing ACK from a slave | is **not** reported: a read returns `0xff`, a write reports either success or a transmission error |
 
 Command bytes an outside master sends to the YKUSH3 in **slave mode**:
@@ -203,11 +203,11 @@ has no commands for UART or SPI.
 | Item | Value |
 |---|---|
 | Supply modes | bus powered or self powered, selected by a jumper |
-| External supply | 5.00–5.25 V through a screw terminal, 3.54 mm pitch |
-| Operating temperature | −40 to +85 °C |
-| Absolute limit on the +PWR 5V pin | −0.3 V to +6 V |
+| External supply | 5.00-5.25 V through a screw terminal, 3.54 mm pitch |
+| Operating temperature | -40 to +85 degC |
+| Absolute limit on the +PWR 5V pin | -0.3 V to +6 V |
 
-Under a heavy load — several hard drives — self powered with an adequate supply is the way
+Under a heavy load - several hard drives - self powered with an adequate supply is the way
 to go; the drop across the power switches grows with the current.
 
 ### Hardware revision 1.3.0
@@ -223,9 +223,9 @@ of an answer is `0x01` on success and `0x00` on failure.
 
 | Opcode | Command | Layout | Answer |
 |---|---|---|---|
-| `0x01`–`0x03`, `0x0A` | port 1–3 / all off | `[op]` | `0x01`, echo |
-| `0x11`–`0x13`, `0x1A` | port 1–3 / all on | `[op]` | `0x01`, echo |
-| `0x21`–`0x23` | port state | `[op]` | byte 1: high nibble on/off, low nibble port number |
+| `0x01`-`0x03`, `0x0A` | port 1-3 / all off | `[op]` | `0x01`, echo |
+| `0x11`-`0x13`, `0x1A` | port 1-3 / all on | `[op]` | `0x01`, echo |
+| `0x21`-`0x23` | port state | `[op]` | byte 1: high nibble on/off, low nibble port number |
 | `0x04` / `0x14` / `0x24` | 5V output off / on / state | `[op]` | `0x01`, byte 1 is `0x04`/`0x14` |
 | `0x30` | read GPIO | `[op, pin]` | byte 3 is the level |
 | `0x31` | write GPIO | `[op, pin, value]` | echo |
@@ -233,7 +233,7 @@ of an answer is `0x01` on success and `0x00` on failure.
 | `0x41` | power-on state | `[op, port, state]` | `0x01, 0x41, port, state` |
 | `0x42` | enter bootloader | `[op]` | none, the board restarts |
 | `0x51` | I2C configuration | `[op, action, value]` | `0x01` |
-| `0x52` | I2C write/read | `[op, action, addr, n, data…]` | `status, 0x52, n, data…` |
+| `0x52` | I2C write/read | `[op, action, addr, n, data...]` | `status, 0x52, n, data...` |
 | `0x55` | reset | `[op]` | none |
 | `0x61` | version | `[op, 0x01\|0x02]` | `0x01, 0x61, major, minor, patch` |
 
@@ -244,7 +244,7 @@ of an answer is `0x01` on success and `0x00` on failure.
 The table was derived from the C++ original and checked against the vendor reference. Two
 things `ykushcmd` uses are **not** documented anywhere: `-c` with port `e`, the external 5V
 output, and the configuration value `2` for the last state. Neither appears in datasheet
-v1.2.1 or in the online reference, yet both work — see
+v1.2.1 or in the online reference, yet both work - see
 [Checked against the hardware](#checked-against-the-hardware).
 
 ## How it is put together
@@ -267,9 +267,9 @@ touches the board, and the `ykush3cmd` **binary**, a command line front end on t
 The layers are separated so that each one can be exercised without hardware:
 
 ```
-arguments ──cli::parse──> Invocation{serial, Command} ──execute──> Ykush3<T: Transport>
-                                                                        │
-                                                     Board (async-hid) ─┴─ FakeBoard (test)
+arguments --cli::parse--> Invocation{serial, Command} --execute--> Ykush3<T: Transport>
+                                                                        |
+                                                     Board (async-hid) -+- FakeBoard (test)
 ```
 
 `Ykush3<T>` is generic over the transport and `Ykush3::open()` gives the variant backed by a
@@ -336,7 +336,7 @@ figure stays honest.
 
 The second run **must** be single threaded. The operating system hands out a HID device
 exclusively, and opening or closing it from several threads at once takes the whole process
-down with it — SIGTRAP on macOS.
+down with it - SIGTRAP on macOS.
 
 | Group | Tests | Subject |
 |---|---|---|
@@ -371,15 +371,15 @@ misses four lines. Of the 52 lines missing without a board, 40 are in `device.rs
 the device, and the transfer and send paths behind it. A few of the rest are the failure
 messages of assertions that a passing test never reaches.
 
-With a board attached, what remains unreached is the residue below — plus the untaken half
+With a board attached, what remains unreached is the residue below - plus the untaken half
 of the hardware test that re-applies the port state it finds, since only one of its two
 branches can run on any given day:
 
 | Place | Why it cannot be reached |
 |---|---|
-| `device.rs` — `Error::NoResponse` | would need a device that goes quiet for five seconds |
-| `device.rs` — truncated read | would need a device that delivers only part of a report |
-| `main.rs` — `unreachable!()` | help, version and listing are handled before a board is opened, so the branch is dead by construction |
+| `device.rs` - `Error::NoResponse` | would need a device that goes quiet for five seconds |
+| `device.rs` - truncated read | would need a device that delivers only part of a report |
+| `main.rs` - `unreachable!()` | help, version and listing are handled before a board is opened, so the branch is dead by construction |
 
 Reaching 100 % would take contortions. Turning a documented invariant panic into an error
 path that can be triggered artificially does not make the code better. What could be
@@ -409,7 +409,7 @@ running on Apple silicon. Nothing was attached to the downstream ports.
 
 The answer checking added after the first run of this record was validated against the same
 board on 2026-08-16, still on firmware 1.5.0, in two rounds: first the ACK the board sets
-on a switching command, then the answer-to-request correlation — the echoed GPIO pin and
+on a switching command, then the answer-to-request correlation - the echoed GPIO pin and
 the external port nibble. All nine hardware tests pass; the firmware really does echo what
 the stricter checks require.
 
@@ -438,10 +438,10 @@ What turned up beyond what the documentation says:
   unreachable for about a second. Scripts have to wait, or the commands that follow go
   nowhere.
 - **`--i2c-master disable` cannot be relied on.** The board acknowledges the command and
-  stays in master mode anyway — after a `--reset` as well, after sending it twice, and after
+  stays in master mode anyway - after a `--reset` as well, after sending it twice, and after
   an enable/disable cycle. The mode reproducibly went off only after this sequence:
-  `--i2c-slave enable` → `--i2c-set-address` → `--i2c-slave disable` →
-  `--i2c-master disable` → `--reset`. Which part of it does the work is open; presumably
+  `--i2c-slave enable` -> `--i2c-set-address` -> `--i2c-slave disable` ->
+  `--i2c-master disable` -> `--reset`. Which part of it does the work is open; presumably
   cycling slave mode re-initialises the same MSSP unit. Since the setting is persistent,
   only turn master mode on when it is meant to stay on.
 - **A missing ACK from an I2C slave is not reported.** On an empty bus `--i2c-read` always
@@ -449,7 +449,7 @@ What turned up beyond what the documentation says:
   sometimes and status `0x03` other times, neither of them because a slave answered. So the
   return value says nothing about whether a device is on the bus. Only the reverse holds:
   status `0x02` definitely means the board is not in master mode.
-- **A bus scan across all 7 bit addresses** (`0x08`–`0x77`) ran through without a single
+- **A bus scan across all 7 bit addresses** (`0x08`-`0x77`) ran through without a single
   answer with nothing on the I2C header, so the method is sound for finding a device once
   one is there.
 - **The board can only be open once.** A second attempt fails with "exclusive access and
@@ -465,7 +465,7 @@ What turned up beyond what the documentation says:
 |---|---|---|
 | `-r <gpio>` | prints nothing, the value only reaches the exit code | prints the value on stdout, exit code `0` |
 | `-g 4` | the answer is not decoded, returns `-1` | the external port is decoded, which tables 6 and 7 of the datasheet say is right |
-| `--i2c-read <n>` with n ≥ 10 | `dec2bin()` writes one byte per digit and corrupts the report | the length goes out as a single number |
+| `--i2c-read <n>` with n >= 10 | `dec2bin()` writes one byte per digit and corrupts the report | the length goes out as a single number |
 | hex values without `0x` | are misread | accepted with and without the prefix |
 | an invalid port number | help with no explanation | a specific error message |
 | `--reset`, `--boot` | wait for an answer the board no longer sends | send without reading |
@@ -477,9 +477,9 @@ What turned up beyond what the documentation says:
 | a command the board rejects | still exits with `0`, the answer is never read | the ACK is checked, exit `1` |
 | an answer shorter than 64 bytes | missing bytes read as zeros | rejected as truncated |
 | a garbled version answer | reported as the legacy version `1.0.0` | an error instead of a guess |
-| a status answer for the wrong port or pin | taken at face value | rejected — the answer must match the request |
+| a status answer for the wrong port or pin | taken at face value | rejected - the answer must match the request |
 | an I2C answer claiming more bytes than asked | clamped and returned | rejected |
-| messages | — | worded independently, see [License](#license) |
+| messages | - | worded independently, see [License](#license) |
 
 ## Driving a YKUR relay board over I2C
 
@@ -499,10 +499,10 @@ YKUSH3's own factory address `0x53`, and it is the master here anyway.
 | Byte | Effect | Byte | Effect |
 |---|---|---|---|
 | `0x01` | relay on | `0x02` | relay off |
-| `0x03`–`0x06` | port 1–4 on | `0x07`–`0x0A` | port 1–4 off |
+| `0x03`-`0x06` | port 1-4 on | `0x07`-`0x0A` | port 1-4 off |
 | `0x0B` | all ports on | `0x0C` | all ports off |
 | `0x0D` | all ports and the relay on | `0x0E` | all ports and the relay off |
-| `0x0F` | read the relay state | `0x1F`/`0x2F`/`0x3F`/`0x4F` | read the state of port 1–4 |
+| `0x0F` | read the relay state | `0x1F`/`0x2F`/`0x3F`/`0x4F` | read the state of port 1-4 |
 
 Which gives:
 
@@ -519,24 +519,24 @@ Worth knowing before wiring it up:
 - **Measure the levels first.** The YKUSH3 pins take 3.6 V absolute maximum. Whether the
   YKUR pulls its I2C bus to 3.3 V or to 5 V is in neither datasheet. Measure at the YKUR I2C
   pins with the bus idle; at 5 V a level shifter is needed.
-- **Both boards carry their own pull-ups.** In parallel that halves the resistance — usually
+- **Both boards carry their own pull-ups.** In parallel that halves the resistance - usually
   harmless, but remove one set if the bus misbehaves.
 - **Tie the grounds together.** I2C needs a common reference.
 - **The YKUR needs its own supply.** Two I2C wires do not feed it. The obvious arrangement
   is to run the YKUSH3's switched 5V output, good for 6 A, into the YKUR's external supply
-  input — which also lets `ykush3cmd -on`/`-off` cut the YKUR's power entirely.
+  input - which also lets `ykush3cmd -on`/`-off` cut the YKUR's power entirely.
 - **The exit code tells you nothing.** Verified on hardware: on an empty bus `--i2c-write`
   reports success and `--i2c-read` returns `255`. Whether the YKUR answers at all shows only
-  in the content of a reply that cannot be `255` — or simply in whether the relay clicks.
+  in the content of a reply that cannot be `255` - or simply in whether the relay clicks.
 - **Reading state is untested.** Switching is documented. Whether the query bytes (`0x0F`
-  and relatives) work across the bridge — `--i2c-write` with the query byte followed by
-  `--i2c-read 0xA2 1` — is in no datasheet, because only the write sequence is described
+  and relatives) work across the bridge - `--i2c-write` with the query byte followed by
+  `--i2c-read 0xA2 1` - is in no datasheet, because only the write sequence is described
   there. It has to be tried on the YKUR.
 - **Wait after changing mode.** `--i2c-master enable` makes the board re-enumerate and the
   commands that follow fail for about a second. The command itself reports a read error even
   though it was carried out.
 - **`enable` is effectively a one-time action.** The mode survives resets and power cuts, and
-  turning it off again is awkward — see
+  turning it off again is awkward - see
   [Checked against the hardware](#checked-against-the-hardware). For running a YKUR that is
   no drawback; the mode is meant to stay on.
 - **Firmware:** the YKUR only gained its I2C control interface in revision 1.2.1.
@@ -573,7 +573,7 @@ is what copyright protects.
 
 No source, no help text and no message of the original is present. Help and output are
 written from scratch; that was checked against every string literal in `ykush_help.cpp`,
-`ykush3.cpp` and `yk_usb_device.cpp` — nothing overlaps.
+`ykush3.cpp` and `yk_usb_device.cpp` - nothing overlaps.
 
 The choice of the Apache license is therefore freely made rather than inherited. The credit
 in [`NOTICE`](NOTICE) is there voluntarily, because the protocol would not exist without

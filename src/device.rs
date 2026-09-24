@@ -3,7 +3,7 @@
 //!
 //! Talks to the board through async-hid, which reaches the device by way of
 //! IOKit. That library is asynchronous because that is how the operating
-//! system delivers HID reports — it hands out callbacks on a run loop rather
+//! system delivers HID reports - it hands out callbacks on a run loop rather
 //! than a blocking read. This program is not asynchronous and has no reason to
 //! be, so the awaits are resolved here and everything above the [`Transport`]
 //! trait stays as synchronous as it was.
@@ -149,7 +149,7 @@ impl Transport for Board {
 
         // The library has no timed read, so the read races a timer: a board
         // that says nothing must not hang the program. Dropping the losing
-        // read leaves the handle usable — the next command goes through as if
+        // read leaves the handle usable - the next command goes through as if
         // nothing had happened.
         let read = future::block_on(future::or(
             async { Some(dev.read_input_report(&mut resp).await) },

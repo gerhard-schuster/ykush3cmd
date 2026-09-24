@@ -18,7 +18,7 @@ The unchanged C++ part of that repository was not part of the review.
 |---|---|
 | Command injection | no `std::process::Command` in production code; only in `tests/cli.rs`, with `CARGO_BIN_EXE_*` and fixed arguments |
 | Path traversal, file access | no file operations at all; `Path` is used solely for the basename of `argv[0]` (`src/main.rs`) |
-| SQL, NoSQL, XXE, templating, deserialisation | not applicable — the only dependency is `hidapi 2.6.6` |
+| SQL, NoSQL, XXE, templating, deserialisation | not applicable - the only dependency is `hidapi 2.6.6` |
 | Secrets, crypto | no keys, tokens or crypto calls; only the constants VID `0x04D8` and PID `0xF11B` |
 | Format string injection | every `format!` and `writeln!` uses a literal with values as arguments, which is not injectable by construction |
 | `unsafe` | not used anywhere in this program |
@@ -36,7 +36,7 @@ Handling it is sound against a hostile or faulty device:
   buffer.
 - Every other access to an answer (`resp[0]` through `resp[4]`) is at a constant index
   inside the buffer.
-- No `unwrap()`, `expect()` or `panic!` in production code — every occurrence is inside a
+- No `unwrap()`, `expect()` or `panic!` in production code - every occurrence is inside a
   `#[cfg(test)]` module.
 
 ## Observations below the reporting bar
@@ -67,12 +67,12 @@ describes the state at the time of the review.
 
 The transport was changed afterwards as well: the dependency named above, `hidapi 2.6.6`
 with its vendored C library, was replaced by `async-hid`, which reaches IOKit from Rust. No
-third party C is compiled any more. The categories examined above are unaffected — the
-trust boundary to the device is the same 64 byte report either way — but the sentence about
+third party C is compiled any more. The categories examined above are unaffected - the
+trust boundary to the device is the same 64 byte report either way - but the sentence about
 the dependency describes the state at the time of the review, not the state today.
 
 ## Scope
 
 A snapshot of the commit named above. Changes made to the code afterwards are not covered.
-A review without findings is no proof of correctness — it says that nothing above the
+A review without findings is no proof of correctness - it says that nothing above the
 reporting bar was found in the categories examined.

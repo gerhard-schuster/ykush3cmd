@@ -27,8 +27,8 @@ impl Port {
     /// Port number as used in the low nibble of the port opcodes.
     ///
     /// A number outside 1 to 3 is rejected rather than masked: unchecked it
-    /// would bleed into the opcode — 0x42 would turn a switching command into
-    /// BOOTLOADER — and masked it would silently address a different port.
+    /// would bleed into the opcode - 0x42 would turn a switching command into
+    /// BOOTLOADER - and masked it would silently address a different port.
     /// The command line never produces such a value, but a library caller can.
     fn code(self) -> Result<u8> {
         match self {
@@ -185,7 +185,7 @@ impl<T: Transport> Ykush3<T> {
 
         // The answer carries the port number in the low nibble and the
         // switching state in the high nibble. The number must be the port
-        // that was asked about — otherwise a valid-looking answer could
+        // that was asked about - otherwise a valid-looking answer could
         // describe a different physical port.
         let state = resp[1];
         let number = state & 0x0f;
@@ -334,7 +334,7 @@ impl<T: Transport> Ykush3<T> {
     fn version(&self, kind: u8, legacy: Version) -> Result<Version> {
         let resp = self.request(&[op::VERSION, kind])?;
 
-        // Boards too old to know the version command leave the answer empty —
+        // Boards too old to know the version command leave the answer empty -
         // and only that exact shape maps to the legacy constant. Everything
         // else that is not a proper version answer is an error: reporting a
         // made-up "1.0.0" for a garbled reply would turn a communication
@@ -366,7 +366,7 @@ impl<T: Transport> Ykush3<T> {
     ///
     /// This is the validation floor, not the policy. The policy is: every
     /// command checks exactly the answer shape that is documented or has been
-    /// observed on hardware — a dedicated decoder where the answer carries
+    /// observed on hardware - a dedicated decoder where the answer carries
     /// data (port status, GPIO reads, versions, I2C), the echoed opcode where
     /// the board echoes one, and only the status byte where nothing more is
     /// known. The switching and configuration commands are in that last
@@ -393,7 +393,7 @@ impl<T: Transport> Ykush3<T> {
 /// GPIO pin number as sent on the wire, `1` to `3`.
 ///
 /// Validated here and not only in the command line, because the library can
-/// be called with any `u8` — and an unchecked pin number would go straight
+/// be called with any `u8` - and an unchecked pin number would go straight
 /// into a report.
 fn gpio_code(gpio: u8) -> Result<u8> {
     if (1..=3).contains(&gpio) {
@@ -599,7 +599,7 @@ mod tests {
 
     #[test]
     fn a_port_status_the_board_does_not_acknowledge_is_an_error() {
-        // 0x11 in the second byte would decode as "port 1 on" — without the
+        // 0x11 in the second byte would decode as "port 1 on" - without the
         // status byte check the rejection would read as a valid state.
         let (result, _) = exchange(&[0x00, 0x11], |b| b.port_status(Port::Downstream(1)), 1);
 
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn an_empty_version_answer_falls_back_to_the_legacy_version() {
-        // Old boards do not know the command and leave the answer empty —
+        // Old boards do not know the command and leave the answer empty -
         // the all-zero report is the only shape that maps to the fallback.
         let (firmware, _) = exchange(&[0x00], |b| b.firmware_version(), 2);
         let (boot, _) = exchange(&[0x00], |b| b.bootloader_version(), 2);
@@ -932,7 +932,7 @@ mod tests {
     /// disturbed.
     ///
     /// The mixture is the point. Noise alone hits the interesting case
-    /// almost never: an answer that is right except for one nibble — correct
+    /// almost never: an answer that is right except for one nibble - correct
     /// status byte, correct opcode, wrong port. That is where a gap in the
     /// validation would hide, and random bytes carry an acknowledgement only
     /// once in 256 tries.
@@ -974,10 +974,10 @@ mod tests {
             let board = Ykush3::with_transport(FakeBoard::answering(&answer));
             if let Ok(status) = board.port_status(Port::Downstream(2)) {
                 let ctx = swept(round, &answer);
-                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
-                assert_eq!(answer[1] & 0x0f, 2, "answer for another port — {ctx}");
-                assert_eq!(status.port, 2, "reported another port — {ctx}");
-                assert_eq!(status.on, (answer[1] >> 4) != 0, "state nibble — {ctx}");
+                assert_eq!(answer[0], 0x01, "no acknowledgement - {ctx}");
+                assert_eq!(answer[1] & 0x0f, 2, "answer for another port - {ctx}");
+                assert_eq!(status.port, 2, "reported another port - {ctx}");
+                assert_eq!(status.on, (answer[1] >> 4) != 0, "state nibble - {ctx}");
             }
 
             // A GPIO read must carry the level of the pin that was asked for.
@@ -985,10 +985,10 @@ mod tests {
             let board = Ykush3::with_transport(FakeBoard::answering(&answer));
             if let Ok(level) = board.read_io(3) {
                 let ctx = swept(round, &answer);
-                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
-                assert_eq!(answer[1], 0x30, "answer to another command — {ctx}");
-                assert_eq!(answer[2], 3, "level of another pin — {ctx}");
-                assert_eq!(level, answer[3], "level not the one reported — {ctx}");
+                assert_eq!(answer[0], 0x01, "no acknowledgement - {ctx}");
+                assert_eq!(answer[1], 0x30, "answer to another command - {ctx}");
+                assert_eq!(answer[2], 3, "level of another pin - {ctx}");
+                assert_eq!(level, answer[3], "level not the one reported - {ctx}");
             }
 
             // A switching command may only pass on an acknowledgement.
@@ -998,7 +998,7 @@ mod tests {
                 assert_eq!(
                     answer[0],
                     0x01,
-                    "switched without acknowledgement — {}",
+                    "switched without acknowledgement - {}",
                     swept(round, &answer)
                 );
             }
@@ -1011,18 +1011,18 @@ mod tests {
             let board = Ykush3::with_transport(FakeBoard::answering(&answer));
             if let Ok(data) = board.i2c_read(0x20, 4) {
                 let ctx = swept(round, &answer);
-                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
-                assert_eq!(answer[1], 0x52, "answer to another command — {ctx}");
-                assert!(data.len() <= 4, "more bytes than requested — {ctx}");
+                assert_eq!(answer[0], 0x01, "no acknowledgement - {ctx}");
+                assert_eq!(answer[1], 0x52, "answer to another command - {ctx}");
+                assert!(data.len() <= 4, "more bytes than requested - {ctx}");
                 assert_eq!(
                     data.len(),
                     usize::from(answer[2]),
-                    "not the reported length — {ctx}"
+                    "not the reported length - {ctx}"
                 );
                 assert_eq!(
                     data.as_slice(),
                     &answer[3..3 + data.len()],
-                    "not the reported bytes — {ctx}"
+                    "not the reported bytes - {ctx}"
                 );
             }
 
@@ -1031,8 +1031,8 @@ mod tests {
             let board = Ykush3::with_transport(FakeBoard::answering(&answer));
             if board.i2c_write(0x20, &[0xaa]).is_ok() {
                 let ctx = swept(round, &answer);
-                assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
-                assert_eq!(answer[1], 0x52, "answer to another command — {ctx}");
+                assert_eq!(answer[0], 0x01, "no acknowledgement - {ctx}");
+                assert_eq!(answer[1], 0x52, "answer to another command - {ctx}");
             }
 
             // A version is either the exact empty shape of an old board or an
@@ -1044,15 +1044,15 @@ mod tests {
                 if answer.iter().all(|&b| b == 0) {
                     assert_eq!(
                         version, LEGACY_FIRMWARE,
-                        "empty answer, other version — {ctx}"
+                        "empty answer, other version - {ctx}"
                     );
                 } else {
-                    assert_eq!(answer[0], 0x01, "no acknowledgement — {ctx}");
-                    assert_eq!(answer[1], 0x61, "answer to another command — {ctx}");
+                    assert_eq!(answer[0], 0x01, "no acknowledgement - {ctx}");
+                    assert_eq!(answer[1], 0x61, "answer to another command - {ctx}");
                     assert_eq!(
                         (version.major, version.minor, version.patch),
                         (answer[2], answer[3], answer[4]),
-                        "version not the one reported — {ctx}"
+                        "version not the one reported - {ctx}"
                     );
                 }
             }

@@ -79,7 +79,7 @@ pub fn parse(args: &[String]) -> Result<Invocation> {
 
     // The serial number selects the board for whichever command follows, so it
     // is picked up before the command itself. Two serial numbers on one line
-    // have no meaning — silently taking the first could address the wrong
+    // have no meaning - silently taking the first could address the wrong
     // board.
     let mut serials = opts.iter().filter(|o| o.name == "-s");
     let serial = match serials.next() {
@@ -177,7 +177,7 @@ fn command(opt: &Opt) -> Result<Option<Command>> {
 }
 
 /// Splits the arguments into options. A token that belongs to no option is
-/// rejected — the only free-standing token with a meaning is the leading
+/// rejected - the only free-standing token with a meaning is the leading
 /// board name, and `parse()` takes that off beforehand.
 fn split(args: &[String]) -> Result<Vec<Opt>> {
     let mut opts: Vec<Opt> = Vec::new();
