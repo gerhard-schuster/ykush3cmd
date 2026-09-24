@@ -49,6 +49,12 @@ a board before and after.
   `U+200B` prints as nothing, which together are enough to show one board's
   serial number as another's. `U+FFFD` is still kept, so a lossy `argv`
   conversion still shows where the bad byte was.
+- The transport is pinned to a revision of the fork rather than patched to a
+  directory next to this repository, so a clone of this repository builds on its
+  own and `Cargo.lock` records a revision anyone can check. It was a
+  `[patch.crates-io]` pointing at `../async-hid` before, which resolved to
+  whatever happened to be on that disk. The pin goes away once the fix is
+  released on crates.io; the open pull request is sidit77/async-hid#46.
 
 ### Removed
 

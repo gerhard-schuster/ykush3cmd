@@ -21,7 +21,11 @@ name = "ykush3"
 fake = []
 
 [dependencies]
-async-hid = "0.5"
+# Not from crates.io: 0.5.3 stops delivering input reports on macOS after a
+# few hundred writes on a handle that stays open, which is exactly how a test
+# rig drives a board. The fix is sidit77/async-hid#46, pinned here by revision
+# until it is released. Switch back to a version requirement once it is.
+async-hid = { version = "0.5", git = "https://github.com/gerhard-schuster/async-hid", rev = "43e79e45b4d806847b89404cc3900c4d52e91eb1" }
 # block_on and the stream adapter for enumeration; async-io only for the timer
 # the read races against, since async-hid has no timed read.
 async-io = "2"
@@ -36,10 +40,3 @@ ykush3cmd = { path = ".", features = ["fake"] }
 [profile.release]
 opt-level = "s"
 strip = true
-
-# Until sidit77/async-hid#45 is released, the transport uses the fixed copy
-# next to this repository. Upstream stops delivering input reports after a
-# few hundred writes on a handle that stays open, which is exactly how a test
-# rig drives a board. Drop this section once a release carries the fix.
-[patch.crates-io]
-async-hid = { path = "../async-hid" }
