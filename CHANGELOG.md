@@ -26,6 +26,9 @@ repository builds on its own.
   leaves the device usable.
 - No leading report id byte is prepended any more. The new library takes the
   bare 64 byte report, which suits a board that uses unnumbered reports.
+- The minimum supported Rust is 1.85, up from 1.74. `async-hid` moved to
+  edition 2024, which no earlier compiler accepts. Nothing in this crate needs
+  it; the floor comes from the dependency.
 - The documentation now states where the protocol came from. It was implemented
   from Yepkit's published USB control interface and I2C references and checked
   against a board, not taken from the source of the C++ `ykushcmd`; the README,
