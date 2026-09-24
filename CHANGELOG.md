@@ -22,9 +22,22 @@ a board before and after.
   leaves the device usable.
 - No leading report id byte is prepended any more. The new library takes the
   bare 64 byte report, which suits a board that uses unnumbered reports.
+- The documentation now states where the protocol came from. It was implemented
+  from Yepkit's published USB control interface and I2C references and checked
+  against a board, not taken from the source of the C++ `ykushcmd`; the README,
+  `NOTICE`, `doc/README.md` and the crate documentation had described this
+  program as a port of that source. `NOTICE` also records that the two are built
+  differently - a library behind a substitutable transport here, a single
+  executable whose board classes inherit their HID access there. No code
+  changed; what was wrong was the account of how the code came to be.
 
 ### Security
 
+- `SECURITY-REVIEW-0.4.0.md` reviews the state after the transport change; the
+  earlier `SECURITY-REVIEW.md` is kept as the record of the `hidapi` state. No
+  HIGH or MEDIUM finding, one LOW, and a second LOW that was withdrawn after a
+  closer look - the review carries an addendum saying what changed and why the
+  withdrawn one does not stand.
 - An answer that arrives after a read has timed out is no longer read as the
   answer to the next command. A timeout marks the board, and the next exchange
   empties the queue of the transport before it sends. The drain is bounded by a

@@ -13,16 +13,22 @@ Yepkit publishes for their YKUSH boards:
     https://github.com/Yepkit/ykush
     Copyright 2017 Yepkit Lda (www.yepkit.com)
 
-What was taken from it is functional: the USB control protocol — command
-opcodes, report layout, the meaning of the answers — and the names of the
-command line switches. Facts and interfaces of that kind are not what copyright
-protects, so this notice is here because the work deserves crediting, not
-because a license compels it.
+The protocol this program speaks was implemented from Yepkit's published
+documentation - the YKUSH3 USB control interface and I2C references, listed
+with the dates they were retrieved in doc/README.md - and then verified against
+a board. It was not derived from the source of ykushcmd. What the two programs
+share is that protocol, which both must speak because the hardware requires it,
+and the names of the command line switches. Facts and interfaces of that kind
+are not what copyright protects, so this notice is here because the work
+deserves crediting, not because a license compels it.
 
-What was not taken: any source file, any line of the help text, any message the
-program prints. Help and output of this program are written from scratch and
-were checked against every string literal in ykush_help.cpp, ykush3.cpp and
-yk_usb_device.cpp — nothing overlaps.
+Nothing was taken from that source: no source file, no line of the help text,
+no message the program prints, and no element of its structure. The two are
+built differently. This one is a library with a command line front end, and the
+board talks through a transport the tests can substitute; ykushcmd is a single
+executable whose per-board classes inherit their HID access directly. Help and
+output are written from scratch and were checked against every string literal
+in ykush_help.cpp, ykush3.cpp and yk_usb_device.cpp - nothing overlaps.
 
 Yepkit Lda has neither endorsed nor reviewed this work and does not support it.
 Their trademarks and product names are used only to say which hardware this

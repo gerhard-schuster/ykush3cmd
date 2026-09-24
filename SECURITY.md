@@ -30,7 +30,10 @@ program:
 
 ## What has already been looked at
 
-[SECURITY-REVIEW.md](SECURITY-REVIEW.md) records a review of the trust boundary
-to the device, the command line, and the dependency surface. Note who wrote it:
-the author of the code, not an outside party. It is a record of what was
+[SECURITY-REVIEW-0.4.0.md](SECURITY-REVIEW-0.4.0.md) records the current review
+of the trust boundary to the device, the command line, and the dependency
+surface, taken after the transport moved to `async-hid`.
+[SECURITY-REVIEW.md](SECURITY-REVIEW.md) is the earlier one, for the `hidapi`
+transport, and is kept as the record of that state. Note who wrote them: the
+author of the code, not an outside party. They are a record of what was
 examined, not an independent audit.

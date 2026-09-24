@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
 //! Control library for the Yepkit YKUSH3 switchable USB hub.
 //!
-//! Rust port of the YKUSH3 part of the Yepkit `ykushcmd` application. The
-//! `ykush3cmd` binary in this package is a command line front end to this
-//! library; a Rust program can skip it and drive the board directly:
+//! An independent implementation of the YKUSH3 control protocol, written
+//! against Yepkit's published documentation rather than derived from their
+//! `ykushcmd`. The `ykush3cmd` binary in this package is a command line front
+//! end to this library; a Rust program can skip it and drive the board
+//! directly:
 //!
 //! ```no_run
 //! use ykush3::{Port, Ykush3};

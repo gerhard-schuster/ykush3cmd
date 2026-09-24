@@ -1,13 +1,19 @@
 # ykush3cmd
 
-A Rust port of the YKUSH3 part of Yepkit's `ykushcmd`, **for macOS on Apple silicon**.
-YKUSH3 only (VID `0x04D8`, PID `0xF11B`) — YKUSH, YKUSH2 and YKUSHXS are not covered.
+An independent Rust implementation of the YKUSH3 control protocol, **for macOS on Apple
+silicon**. YKUSH3 only (VID `0x04D8`, PID `0xF11B`) - YKUSH, YKUSH2 and YKUSHXS are not
+covered.
+
+It was written against Yepkit's published protocol documentation, not derived from the
+source of their C++ `ykushcmd`: the structure, the architecture and every line of code are
+new work. That program serves here as a reference to compare against, and the
+[differences table](#where-it-differs-from-the-c-original) records where the two part ways.
 
 1. [Building](#building)
 2. [Using it](#using-it)
 3. [The hardware](#the-hardware)
 4. [USB control protocol](#usb-control-protocol)
-5. [How the port is put together](#how-the-port-is-put-together)
+5. [How it is put together](#how-it-is-put-together)
 6. [Tests](#tests)
 7. [Checked against the hardware](#checked-against-the-hardware)
 8. [Where it differs from the C++ original](#where-it-differs-from-the-c-original)
@@ -45,7 +51,8 @@ compiled and no library travels alongside the binary, so a Rust toolchain is the
 requirement — no C compiler, no Xcode command line tools.
 
 Reaching the device needs no special permission — the system hands it to any process that
-asks. See [SECURITY-REVIEW.md](SECURITY-REVIEW.md) for what that means.
+asks. See [SECURITY-REVIEW-0.4.0.md](SECURITY-REVIEW-0.4.0.md) for what that means, and
+[SECURITY-REVIEW.md](SECURITY-REVIEW.md) for the earlier review of the `hidapi` transport.
 
 Every push builds and tests on macOS, see
 [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
@@ -240,7 +247,7 @@ output, and the configuration value `2` for the last state. Neither appears in d
 v1.2.1 or in the online reference, yet both work — see
 [Checked against the hardware](#checked-against-the-hardware).
 
-## How the port is put together
+## How it is put together
 
 The package builds two targets: the `ykush3` **library**, which holds everything that
 touches the board, and the `ykush3cmd` **binary**, a command line front end on top of it.
@@ -550,16 +557,19 @@ The main ones:
 - [YKUSH3 USB control interface](https://ykushboards.yepkit.com/docs/ykush3/reference/usb/)
 - [YKUSH3 I2C](https://ykushboards.yepkit.com/docs/ykush3/reference/i2c/)
 - [YKUR datasheet](https://www.yepkit.com/uploads/documents/bb69a_YKUR_datasheet_Rev.1.2.1.pdf)
-- [ykushcmd on GitHub](https://github.com/Yepkit/ykush) — the C++ original this was ported from
+- [ykushcmd on GitHub](https://github.com/Yepkit/ykush) - Yepkit's own C++ application,
+  the reference this was compared against
 
 ## License
 
 Apache License 2.0, full text in [`LICENSE`](LICENSE). Section 5 of the license governs
 contributions, see [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-What was taken from Yepkit's `ykushcmd` is **functional only**: the USB control protocol —
-opcodes, report layout, what the answers mean — and the names of the command line switches.
-Both are facts and interfaces, and neither is what copyright protects.
+The protocol comes from Yepkit's **published documentation** - the USB control interface
+and I2C references listed above - and not from the source of their `ykushcmd`. What this
+program shares with that one is the protocol both must speak because the hardware requires
+it, and the names of the command line switches. Both are facts and interfaces, and neither
+is what copyright protects.
 
 No source, no help text and no message of the original is present. Help and output are
 written from scratch; that was checked against every string literal in `ykush_help.cpp`,

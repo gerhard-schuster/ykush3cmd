@@ -38,4 +38,4 @@ Relevant if the relay board is to be driven over the I2C bus of a YKUSH3.
 
 | What | Where |
 |---|---|
-| The source this was ported from | https://github.com/Yepkit/ykush |
+| Yepkit's own control program, the reference this was compared against | https://github.com/Yepkit/ykush |

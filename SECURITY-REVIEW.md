@@ -21,7 +21,7 @@ The unchanged C++ part of that repository was not part of the review.
 | SQL, NoSQL, XXE, templating, deserialisation | not applicable — the only dependency is `hidapi 2.6.6` |
 | Secrets, crypto | no keys, tokens or crypto calls; only the constants VID `0x04D8` and PID `0xF11B` |
 | Format string injection | every `format!` and `writeln!` uses a literal with values as arguments, which is not injectable by construction |
-| `unsafe` | not used anywhere in the port |
+| `unsafe` | not used anywhere in this program |
 
 ## Focus: the trust boundary to the USB device
 
@@ -45,7 +45,7 @@ Neither of these is a finding; they are noted deliberately.
 
 1. **Serial numbers were printed unchanged** (`src/main.rs`). A doctored USB device could
    put ANSI escape sequences in its serial number. The C++ original behaves identically
-   (`src/yk_usb_device.cpp`), so the port introduced no new risk, and a terminal escape
+   (`src/yk_usb_device.cpp`), so this program introduces no new risk, and a terminal escape
    vector on its own does not carry a finding.
 2. **Any local process can drive the board.** macOS hands a HID device to whoever opens it
    first, with no privilege required, so any program running as the user can switch ports
