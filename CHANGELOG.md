@@ -4,6 +4,16 @@ Notable changes, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Changed
+
+- The release profile turns on link time optimisation and a single codegen
+  unit. The binary goes from 557 to 407 kB, a third less, and a clean build
+  takes about a second longer. Neither setting changes behaviour.
+  `opt-level` stays at `"s"`: `"z"` measured 320 bytes larger here, because it
+  switches off optimisations that shrink this code.
+
 ## 0.4.1 - 2026-09-24
 
 0.4.0 declares a minimum supported Rust it cannot be built with. The code is

@@ -40,3 +40,9 @@ ykush3cmd = { path = ".", features = ["fake"] }
 [profile.release]
 opt-level = "s"
 strip = true
+# Both are size measures and change no behaviour. Together they take the binary
+# from 557 to 407 kB against a clean build about a second longer. `opt-level`
+# stays at "s": "z" measured 320 bytes larger here, because it switches off
+# optimisations that shrink this code.
+lto = true
+codegen-units = 1
