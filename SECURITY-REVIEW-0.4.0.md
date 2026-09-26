@@ -200,8 +200,9 @@ done. `U+FFFD` is still kept, so a lossy `argv` conversion still shows where the
 was.
 
 **The supply chain gap is closed.** `[patch.crates-io]` pointing at `../async-hid` is gone.
-`async-hid` is an ordinary git dependency now, pinned to revision `43e79e4` of the fork, and
-`Cargo.lock` records it. A copy of this repository with no sibling directory builds, passes
+`async-hid` is an ordinary git dependency now, pinned by revision to the fork, and
+`Cargo.lock` records which one. The revision has moved since this was written, when
+sidit77/async-hid#50 was merged and the branch rebased onto it; the tree did not change. A copy of this repository with no sibling directory builds, passes
 the suite and drives a board, which is what the review found it could not do. The pin is
 itself temporary: it goes away when the fix is released on crates.io.
 

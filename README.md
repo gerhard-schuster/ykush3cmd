@@ -343,10 +343,11 @@ down with it - SIGTRAP on macOS.
 | `cli` | 30 | grammar, board selection, every command, every error message |
 | `ykush3` | 39 | the bytes each command sends, reading answers, error paths, a swept and a hand-picked pass over generated answers |
 | `main` | 13 | output format, dispatch of every command, program name |
-| `error`, `help`, `device`, `sanitize` | 8 | error texts, help output, report padding, the control character filter |
+| `error`, `help`, `device`, `sanitize` | 10 | error texts, help output, report padding, the character filter |
 | `tests/cli.rs` | 9 | the built binary: exit codes, stdout versus stderr |
+| `tests/encoding.rs` | 6 | every file is valid UTF-8 within Latin-1, and the rule itself |
 | doctest | 1 | the library example compiles; `no_run`, since it needs a board |
-| **running without hardware** | **99 + 1** | |
+| **running without hardware** | **107 + 1** | |
 | `--ignored`, needs a board | 7 | opening and real exchanges, the acknowledged switch, the echoed pin and port |
 | `--ignored`, needs only the HID stack | 2 | enumeration when nothing is attached |
 

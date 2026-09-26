@@ -13,6 +13,16 @@ Notable changes, newest first. The format follows
   takes about a second longer. Neither setting changes behaviour.
   `opt-level` stays at `"s"`: `"z"` measured 320 bytes larger here, because it
   switches off optimisations that shrink this code.
+- The transport follows its revision on the fork, which moved when
+  sidit77/async-hid#50 was merged and the branch was rebased onto it. The tree
+  at the new revision is byte for byte the tree at the old one.
+
+### Added
+
+- `tests/encoding.rs` holds every file in the repository to valid UTF-8 within
+  Latin-1: no character above U+00FF, and none of the Latin-1 characters that
+  are invisible or steer a terminal. Umlauts are fine, typography is not. The
+  rule has six tests of its own.
 
 ## 0.4.1 - 2026-09-24
 
