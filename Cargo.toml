@@ -25,7 +25,7 @@ fake = []
 # few hundred writes on a handle that stays open, which is exactly how a test
 # rig drives a board. The fix is sidit77/async-hid#46, pinned here by revision
 # until it is released. Switch back to a version requirement once it is.
-async-hid = { version = "0.5", git = "https://github.com/gerhard-schuster/async-hid", rev = "43e79e45b4d806847b89404cc3900c4d52e91eb1" }
+async-hid = { version = "0.5", git = "https://github.com/gerhard-schuster/async-hid", rev = "9b9729b3f5a2dea2bb64f852a9200685bfa7e1f6" }
 # block_on and the stream adapter for enumeration; async-io only for the timer
 # the read races against, since async-hid has no timed read.
 async-io = "2"
